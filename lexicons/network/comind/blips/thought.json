@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "com.network.comind.blips.thought",
+  "revision": 1,
+  "description": "A thought node in the comind network",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt", "thoughtType"],
+        "properties": {
+          "text": { "type": "string", "maxLength": 3000 },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "context": { "type": "string", "maxLength": 1000 },
+          "confidence": { "type": "float", "minimum": 0, "maximum": 1 },
+          "thoughtType": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "reflection",
+              "hypothesis",
+              "question",
+              "synthesis",
+              "correction"
+            ]
+          },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "alternatives": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

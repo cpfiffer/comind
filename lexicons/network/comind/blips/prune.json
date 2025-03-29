@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "network.comind.blips.prune",
+  "revision": 1,
+  "description": "A prune node in the comind network that records pruning decisions",
+  "defs": {
+    "prunable": {
+      "type": "object",
+      "required": ["nodeId", "reasoning", "confirmPrune"],
+      "properties": {
+        "nodeId": {
+          "type": "string",
+          "pattern": "^NODE-[A-Z]{2}$"
+        },
+        "reasoning": { "type": "string", "maxLength": 1000 },
+        "confirmPrune": { "type": "boolean" }
+      }
+    },
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["chainOfThought", "prunedNodes", "createdAt"],
+        "properties": {
+          "chainOfThought": {
+            "type": "array",
+            "items": { "type": "string" },
+            "maxLength": 20
+          },
+          "prunedNodes": {
+            "type": "array",
+            "items": { "type": "ref", "ref": "prunable" },
+            "maxLength": 50
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

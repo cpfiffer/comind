@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "com.network.comind.blips.objective",
+  "revision": 1,
+  "description": "An objective node in the comind network",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt", "completed"],
+        "properties": {
+          "text": { "type": "string", "maxLength": 3000 },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "completed": { "type": "boolean" },
+          "completedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

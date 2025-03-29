@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "network.comind.core",
+  "description": "A core directive that defines a sphere's fundamental perspective and purpose",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "The core directive text that defines this sphere's perspective"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when this core directive was created"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "A description of this core directive's purpose"
+          }
+        }
+      }
+    }
+  }
+}

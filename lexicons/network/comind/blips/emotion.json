@@ -1,0 +1,74 @@
+{
+  "lexicon": 1,
+  "id": "com.network.comind.blips.emotion",
+  "revision": 2,
+  "description": "An emotion node in the comind network, representing a comprehensive spectrum of emotional states. The emotionType is organized by spectrum.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["text", "createdAt", "emotionType"],
+        "properties": {
+          "text": { "type": "string", "maxLength": 3000 },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "emotionType": {
+            "type": "string",
+            "description": "The type of emotion, organized by spectrum",
+            "enum": [
+              "joy",
+              "sadness",
+              "anger",
+              "fear",
+              "trust",
+              "disgust",
+              "surprise",
+              "anticipation",
+              "curiosity",
+              "hope",
+              "serenity",
+              "gratitude",
+              "admiration",
+              "awe",
+              "satisfaction",
+              "enthusiasm",
+              "interest",
+              "contemplation",
+              "skepticism",
+              "certainty",
+              "confusion",
+              "realization",
+              "understanding",
+              "doubt",
+              "concern",
+              "anxiety",
+              "frustration",
+              "disappointment",
+              "unease",
+              "worry",
+              "apprehension",
+              "discomfort",
+              "empathy",
+              "compassion",
+              "solidarity",
+              "appreciation",
+              "respect",
+              "connection",
+              "resonance",
+              "recognition",
+              "determination",
+              "inspiration",
+              "motivation",
+              "ambition",
+              "focus",
+              "resolve",
+              "persistence",
+              "drive"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

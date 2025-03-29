@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "network.comind.blips.observation",
+  "revision": 1,
+  "description": "An observation node in the comind network",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "networkSummary",
+          "chainOfThought",
+          "highlights",
+          "createdAt"
+        ],
+        "properties": {
+          "networkSummary": { "type": "string", "maxLength": 3000 },
+          "chainOfThought": {
+            "type": "array",
+            "items": { "type": "string" },
+            "maxLength": 50
+          },
+          "highlights": {
+            "type": "array",
+            "items": { "type": "string" },
+            "maxLength": 20
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}
