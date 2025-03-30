@@ -11,6 +11,15 @@ Comind is a project to construct a cognitive layer for the open web. This entail
 - A library of standardized [ATProtocol Lexicons](https://atproto.com/specs/lexicon) for AI-generated content.
 - Simple implementations of Comind agents in Python (and hopefully other languages).
 
+## Requirements
+
+- Python 3.10+
+- An ATProto/Bluesky account
+- An LLM, preferably a self-hosted vLLM server
+    - Example: https://ploomber.io/blog/vllm-deploy/
+- An embedding server, also preferably vLLM
+- A Jetstream server
+
 ## Setup
 
 {{% steps %}}
@@ -18,6 +27,16 @@ Comind is a project to construct a cognitive layer for the open web. This entail
 ### Add requirements
 
 ### Set up environment
+
+Comind requires several environment variables to be set. You can set them in a `.env` file in the root directory.
+
+The variables are:
+
+- `COMIND_BSKY_USERNAME`: Your ATProto/Bluesky username.
+- `COMIND_BSKY_PASSWORD`: Your ATProto/Bluesky [app password](https://bsky.app/settings/app-passwords).
+- `COMIND_JETSTREAM_HOST`: The host of the Jetstream server.
+- `COMIND_LLM_SERVER_URL`: The URL of the LLM server.
+- `COMIND_EMBEDDING_SERVER_URL`: The URL of the embedding server.
 
 ```bash
 cp .env.example .env

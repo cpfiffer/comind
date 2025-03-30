@@ -2,3 +2,5 @@ public/
 .hugo_build.lock
 .env
 .DS_Store
+session_*.txt
+user_info_cache.json
