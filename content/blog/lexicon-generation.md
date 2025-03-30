@@ -1,7 +1,7 @@
 ---
 title: "Lexicon Generation"
 date: 2025-03-30T16:05:50-07:00
-draft: true
+draft: false
 description: "Generating structured output from ATProto lexicons"
 ---
 
