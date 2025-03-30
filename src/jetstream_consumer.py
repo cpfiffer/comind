@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import asyncio
+from typing import List, Optional, Set
 import websockets
 import time
 import logging
@@ -8,11 +9,19 @@ import argparse
 import src.session_reuse as session_reuse
 from rich import print
 from rich.panel import Panel
-from src.bsky_utils import add_property, get_link_schema, lexicon_of, multiple_of_schema, split_link, unpack_thread
-from src.comind_session import AtProtoSession
-from src.comind_atproto.records import RecordManager
+from src.bsky_utils import (
+    add_property,
+    get_link_schema,
+    lexicon_of,
+    multiple_of_schema,
+    split_link,
+    unpack_thread,
+)
 import src.structured_gen as structured_gen
+from src.record_manager import RecordManager
+from atproto_client import Client
 
+import yaml
 import os
 import ssl
 
@@ -27,14 +36,10 @@ logger = logging.getLogger("jetstream_consumer")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-# Load the session
-atproto_session = AtProtoSession()
-client = atproto_session.get_client()
-
 # Jetstream connection configuration
-JETSTREAM_HOST = os.getenv("JETSTREAM_HOST", "ws://localhost:6008/subscribe")
+JETSTREAM_HOST = os.getenv("COMIND_JETSTREAM_HOST", "ws://localhost:6008/subscribe")
 RECONNECT_DELAY = 5  # Seconds to wait before reconnecting
-DEFAULT_ACTIVATED_DIDS_FILE = "activated_dids.txt"
+DEFAULT_ACTIVATED_DIDS_FILE = "../activated_dids.txt"
 
 # System prompts for language model generation
 system_prompts = {
@@ -127,7 +132,7 @@ def is_did(text: str) -> bool:
     return text.startswith('did:')
 
 
-def resolve_handle_to_did(handle: str) -> Optional[str]:
+def resolve_handle_to_did(client, handle: str) -> Optional[str]:
     """Resolve a handle to a DID using the ATProto client"""
     try:
         did = client.resolve_handle(handle).did
@@ -139,7 +144,7 @@ def resolve_handle_to_did(handle: str) -> Optional[str]:
         return None
 
 
-def load_activated_dids_from_file(file_path: str) -> List[str]:
+def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
     """Load activated DIDs from a text file
     
     The file can contain either DIDs (starting with 'did:') or handles.
@@ -174,7 +179,7 @@ def load_activated_dids_from_file(file_path: str) -> List[str]:
                     dids.append(identifier)
                 # Otherwise, resolve the handle to a DID
                 else:
-                    did = resolve_handle_to_did(identifier)
+                    did = resolve_handle_to_did(client, identifier)
                     if did:
                         dids.append(did)
         
@@ -197,7 +202,7 @@ def update_activated_dids(file_path: str) -> None:
         # Keep existing list if update fails
 
 
-async def process_post(post_uri: str, post_cid: str, root_post_uri: str = None) -> None:
+async def process_post(client: Client, post_uri: str, post_cid: str, root_post_uri: str = None) -> None:
     """Process a post and generate thoughts, emotions, and concepts for it"""
     try:
         # Skip if the post has already been processed
@@ -327,7 +332,7 @@ async def process_post(post_uri: str, post_cid: str, root_post_uri: str = None) 
         logger.error(f"Error processing post {post_uri}: {e}")
 
 
-async def connect_to_jetstream(activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST) -> None:
+async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
     
@@ -380,13 +385,13 @@ async def connect_to_jetstream(activated_dids_file: str, jetstream_host: str = J
                     try:
                         # Receive message from Jetstream with timeout
                         message = await asyncio.wait_for(websocket.recv(), timeout=10)
-                        event = json.loads(message)
+                        event = json.loads(message)\
                         
                         # Check if it's a post creation event
                         if (event.get("kind") == "commit" and 
                             event.get("commit", {}).get("operation") == "create" and
                             event.get("commit", {}).get("collection") == "app.bsky.feed.post"):
-                            
+
                             # Extract post URI and CID
                             post_uri = f"at://{event['did']}/app.bsky.feed.post/{event['commit']['rkey']}"
                             post_cid = event['commit'].get('cid', '')
@@ -402,7 +407,7 @@ async def connect_to_jetstream(activated_dids_file: str, jetstream_host: str = J
                             root_post_uri = event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}).get("uri", None)
                             
                             # Process the post
-                            await process_post(post_uri, post_cid, root_post_uri=root_post_uri)
+                            await process_post(atproto_client, post_uri, post_cid, root_post_uri=root_post_uri)
                     except asyncio.TimeoutError:
                         # This is expected - allows us to check if DIDs list changed
                         continue
@@ -461,21 +466,30 @@ async def main():
     parser.add_argument("--password", "-p", type=str, default=None,
                         help="Password for ATProto client")
     
+    args = parser.parse_args()
+
+    # Set the log level
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    
     # If username and password are not provided, try to use the .env file
-    if args.username is None or args.password is None:
+    if args.username is None:
         args.username = os.getenv("COMIND_BSKY_USERNAME")
         args.password = os.getenv("COMIND_BSKY_PASSWORD")
 
     # If no username or password, exit
-    if args.username is None or args.password is None:
-        logger.error("No username or password provided. Please provide a username and password using the --username and --password flags, or set the COMIND_BSKY_USERNAME and COMIND_BSKY_PASSWORD environment variables.")
+    if args.username is None:
+        logger.error("No username provided. Please provide a username using the --username flag, or set the COMIND_BSKY_USERNAME environment variable.")
         parser.print_help()
         return
     
-    args = parser.parse_args()
+    # If no password, exit
+    if args.password is None:
+        logger.error("No password provided. Please provide a password using the --password flag, or set the COMIND_BSKY_PASSWORD environment variable.")
+        parser.print_help()
+        return
     
-    # Set the log level
-    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    # Log in to ATProto
+    atproto_client = session_reuse.init_client(args.username, args.password)
     
     # If SSL option is specified and --jetstream-host wasn't provided, modify the URL
     if args.use_ssl and args.jetstream_host == JETSTREAM_HOST and args.jetstream_host.startswith("ws:"):
@@ -484,13 +498,14 @@ async def main():
     
     logger.info(f"Starting Jetstream consumer with activated DIDs file: {args.dids_file}")
     logger.info(f"Jetstream host: {args.jetstream_host}")
-    
+
     try:
-        await connect_to_jetstream(args.dids_file, args.jetstream_host)
+        await connect_to_jetstream(atproto_client, args.dids_file, args.jetstream_host)
     except KeyboardInterrupt:
         logger.info("Shutting down")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        raise e
 
 
 if __name__ == "__main__":

@@ -1,0 +1,44 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.sphere.member",
+    "defs": {
+        "main": {
+            "type": "record",
+            "description": "Record representing an account's membership in a sphere.",
+            "key": "tid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "member",
+                    "sphere",
+                    "createdAt"
+                ],
+                "properties": {
+                    "member": {
+                        "type": "string",
+                        "format": "did",
+                        "description": "The account which is a member of the sphere."
+                    },
+                    "sphere": {
+                        "type": "string",
+                        "format": "at-uri",
+                        "description": "Reference (AT-URI) to the sphere record (network.comind.spheres.sphere)."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "The role of the member in the sphere. Members can write to the sphere, admins can moderate the sphere by removing contributed blips and changing metadata (except for the core purpose), and owners can manage admins and change the core purpose.",
+                        "enum": [
+                            "member",
+                            "admin",
+                            "owner"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

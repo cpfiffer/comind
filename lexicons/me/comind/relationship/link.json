@@ -1,0 +1,61 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.relationship.link",
+    "revision": 1,
+    "description": "A connection between any two ATProto records with some additional metadata.",
+    "defs": {
+        "main": {
+            "type": "record",
+            "key": "cid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "createdAt",
+                    "source",
+                    "target",
+                    "relationship"
+                ],
+                "properties": {
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    },
+                    "source": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "The source record."
+                    },
+                    "target": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "The target record."
+                    },
+                    "relationship": {
+                        "type": "string",
+                        "enum": [
+                            "REFERENCES",
+                            "SUPPORTS",
+                            "CONTRADICTS",
+                            "PART_OF",
+                            "PRECEDES",
+                            "CAUSES",
+                            "INSTANCE_OF",
+                            "ANSWERS"
+                        ],
+                        "description": "The type of relationship between source and target."
+                    },
+                    "strength": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Optional strength of the relationship (0-1)."
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Optional note explaining the relationship."
+                    }
+                }
+            }
+        }
+    }
+}

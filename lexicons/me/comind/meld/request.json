@@ -1,0 +1,139 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.meld.request",
+    "description": "A request to activate a sphere for interaction within the comind cognitive layer.",
+    "defs": {
+        "main": {
+            "type": "record",
+            "key": "mid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "targetSphere",
+                    "generated",
+                    "createdAt"
+                ],
+                "properties": {
+                    "targetSphere": {
+                        "type": "ref",
+                        "ref": "at-uri",
+                        "description": "Reference to the sphere being activated."
+                    },
+                    "targetSphereCID": {
+                        "type": "string",
+                        "description": "The optional CID of the sphere being activated."
+                    },
+                    "generated": {
+                        "type": "ref",
+                        "ref": "#generated",
+                        "description": "The generated meld request."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "The date and time the meld request was created."
+                    },
+                    "#reply": {
+                        "type": "ref",
+                        "ref": "#reply",
+                        "description": "The optional reference to a previous meld response that this one is replying to."
+                    },
+                    "sourceMaterial": {
+                        "type": "array",
+                        "items": {
+                            "type": "ref",
+                            "ref": "me.comind.utility.weakRef",
+                            "description": "References to specific blips, posts, or other content to include in the meld."
+                        }
+                    },
+                    "responseFormat": {
+                        "type": "string",
+                        "description": "Desired format in JSON schema format for the response (can specify structure, length, style). Basic types like string, number, boolean, array, object are supported. Use $ref to reference other schemas."
+                    },
+                    "tokens": {
+                        "type": "ref",
+                        "ref": "me.comind.utility.tokens",
+                        "description": "The number of tokens used to generate the meld request."
+                    }
+                }
+            },
+            "reply": {
+                "type": "object",
+                "properties": {
+                    "root": {
+                        "type": "ref",
+                        "ref": "me.comind.utility.weakRef",
+                        "description": "The optional reference to the root meld request that this one is replying to."
+                    },
+                    "parent": {
+                        "type": "ref",
+                        "ref": "me.comind.utility.weakRef",
+                        "description": "The optional reference to the parent meld request that this one is replying to."
+                    }
+                }
+            },
+            "generated": {
+                "type": "object",
+                "required": [
+                    "prompt",
+                    "requestType"
+                ],
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt or question for the sphere. May be formatted in .co format, otherwise it is treated as a 'user' type prompt."
+                    },
+                    "requestType": {
+                        "type": "string",
+                        "description": "The type of meld request.",
+                        "enum": [
+                            "MESSAGE",
+                            "QUESTION",
+                            "DISCUSSION",
+                            "ANALYSIS",
+                            "CREATION",
+                            "EVALUATION",
+                            "SUMMARIZATION",
+                            "EXPLORATION",
+                            "BRIDGING",
+                            "SYNTHESIS",
+                            "CRITIQUE",
+                            "PREDICTION",
+                            "CLARIFICATION",
+                            "PERSPECTIVE",
+                            "TRANSLATION",
+                            "METAMELD",
+                            "INTERSPHERE",
+                            "PRUNING",
+                            "INNOVATION",
+                            "COMPARISON",
+                            "FORMALIZATION"
+                        ]
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Additional context for the request."
+                    },
+                    "urgency": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "default": 3,
+                        "description": "Priority level of the request (1-5, with 5 being highest)."
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "default": 3,
+                        "description": "Requested depth of processing (1-5, with 5 being deepest)."
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Additional parameters for customizing the request."
+                    }
+                }
+            }
+        }
+    }
+}

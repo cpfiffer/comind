@@ -1,0 +1,23 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.utility.weakRef",
+    "description": "A URI with an optional content-hash fingerprint.",
+    "defs": {
+        "main": {
+            "type": "object",
+            "required": [
+                "uri"
+            ],
+            "properties": {
+                "uri": {
+                    "type": "string",
+                    "format": "at-uri"
+                },
+                "cid": {
+                    "type": "string",
+                    "format": "cid"
+                }
+            }
+        }
+    }
+}

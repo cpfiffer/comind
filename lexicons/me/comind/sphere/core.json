@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "me.comind.sphere.core",
+  "description": "A sphere is a collection of blips that share a common core purpose. Spheres are 'cognitive workspaces' that are used to organize and manage blips.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "createdAt"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "The sphere title."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "The core purpose text that defines this sphere's purpose, such as 'Explore the future of AI', 'Discuss a novel concept in materials science', 'Understand the AT Protocol'."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when this core purpose was created"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "An optional description of the sphere."
+          }
+        }
+      }
+    }
+  }
+}

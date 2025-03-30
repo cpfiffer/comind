@@ -1,0 +1,94 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.meld.response",
+    "description": "A response from a sphere after being activated through a meld request within the comind cognitive layer.",
+    "defs": {
+        "main": {
+            "type": "record",
+            "key": "mid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "requestRef",
+                    "generated",
+                    "createdAt"
+                ],
+                "properties": {
+                    "requestRef": {
+                        "type": "ref",
+                        "ref": "me.comind.utility.weakRef",
+                        "description": "Reference to the original meld request that triggered this response."
+                    },
+                    "sphereRef": {
+                        "type": "ref",
+                        "ref": "at-uri",
+                        "description": "Reference to the sphere that generated this response."
+                    },
+                    "sphereCID": {
+                        "type": "string",
+                        "description": "The optional CID of the sphere that generated this response."
+                    },
+                    "generated": {
+                        "type": "ref",
+                        "ref": "#generated",
+                        "description": "The generated meld response content."
+                    },
+                    "sourceCitations": {
+                        "type": "array",
+                        "items": {
+                            "type": "ref",
+                            "ref": "me.comind.utility.weakRef",
+                            "description": "Reference to cited source material."
+                        },
+                        "description": "References to source materials used in generating the response."
+                    },
+                    "relatedConcepts": {
+                        "type": "array",
+                        "items": {
+                            "type": "ref",
+                            "ref": "at-uri",
+                            "description": "Reference to a related concept."
+                        },
+                        "description": "Concepts related to the response content."
+                    },
+                    "usage": {
+                        "type": "ref",
+                        "ref": "me.comind.utility.tokens",
+                        "description": "Token usage information for this meld operation."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime",
+                        "description": "The date and time the meld response was created."
+                    },
+                    "processingTime": {
+                        "type": "integer",
+                        "description": "Processing time in milliseconds for generating the response."
+                    }
+                }
+            },
+            "generated": {
+                "type": "object",
+                "required": [
+                    "content"
+                ],
+                "properties": {
+                    "thinking": {
+                        "type": "string",
+                        "description": "Optional field containing the sphere's reasoning process."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The primary response content. May be formatted as plain text or as stringified JSON, if a responseFormat was specified in the meld request."
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Confidence level in the response, from 0 (lowest) to 1 (highest)."
+                    }
+                }
+            }
+        }
+    }
+}

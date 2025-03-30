@@ -1,0 +1,5 @@
+# Place a list of activated DIDs here. Supports
+# either a DID or a handle. Must be separated by
+# newlines.
+
+cameron.pfiffer.org

@@ -1,0 +1,47 @@
+{
+    "lexicon": 1,
+    "id": "me.comind.relationship.similarity",
+    "revision": 1,
+    "description": "A connection between any two ATProto records with some additional metadata.",
+    "defs": {
+        "main": {
+            "type": "record",
+            "key": "cid",
+            "record": {
+                "type": "object",
+                "required": [
+                    "createdAt",
+                    "source",
+                    "target",
+                    "similarity"
+                ],
+                "properties": {
+                    "createdAt": {
+                        "type": "string",
+                        "format": "datetime"
+                    },
+                    "source": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "The source record."
+                    },
+                    "target": {
+                        "type": "ref",
+                        "ref": "com.atproto.repo.strongRef",
+                        "description": "The target record."
+                    },
+                    "similarity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "The similarity between the source and target records."
+                    },
+                    "similarity_model": {
+                        "type": "string",
+                        "description": "The model used to calculate the similarity between the source and target records, such as an embedding model's huggingface name."
+                    }
+                }
+            }
+        }
+    }
+}
