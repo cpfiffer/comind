@@ -337,6 +337,9 @@ async def process_event(
         ]
 
         prompt = "\n\n".join(rows)
+
+        # Print a separator panel
+        print(Panel.fit(prompt, title="Prompt"))
         
         # Generate thoughts, emotions, and concepts
         for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
@@ -345,9 +348,6 @@ async def process_event(
             lx = lexicon_of(nsid)
             add_property(lx, "connection_to_content", link_schema, required=True)
             schema = multiple_of_schema(tail_name, lx)
-            
-            # Print a separator panel
-            print(Panel.fit(prompt, title=nsid))
             
             response = structured_gen.generate_by_schema(
                 messages=[

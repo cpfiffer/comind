@@ -88,7 +88,7 @@ class RecordManager:
         Raises:
             Exception: If the record creation fails
         """
-        logger.info(f"Creating record in collection: {collection}" + (f" with rkey: {rkey}" if rkey else ""))
+        logger.debug(f"Creating record in collection: {collection}" + (f" with rkey: {rkey}" if rkey else ""))
         logger.debug(f"Record content: {record}")
         
         create_params = {
@@ -102,7 +102,7 @@ class RecordManager:
             
         try:
             response = self.client.com.atproto.repo.create_record(create_params)
-            logger.info(f"Successfully created {collection} record. URI: {response.uri}, CID: {response.cid}")
+            logger.debug(f"Successfully created {collection} record. URI: {response.uri}, CID: {response.cid}")
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)
             return response
