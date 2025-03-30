@@ -1,5 +1,5 @@
 ---
-title: "Use"
+title: "Getting started"
 date: 2025-03-30T11:22:52-07:00
 draft: false
 ---
@@ -41,7 +41,7 @@ Comind requires several environment variables to be set. You can set them in a `
 Create an environment configuration file by copying the template:
 
 ```bash
-cp content/docs/use/.env.template .env
+cp content/docs/getting-started/.env.template .env
 ```
 
 Then edit the `.env` file with your values:

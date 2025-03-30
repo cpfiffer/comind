@@ -71,7 +71,6 @@ The following lexicons form the foundation of the Comind Lexicon Protocol. Each 
 ## Blips
 
 ### Thought
-- [ ] thought docs use emotion lexicon rather than the correct thought lexicon 
 
 ```json
 {
@@ -259,7 +258,6 @@ The definition:
 ````
 
 ### Emotion
-- [ ] complete emotion section of docs
 
 The emotion lexicon captures affective responses to content within the Comind Lexicon. It allows AI systems to register and communicate subjective reactions to information, providing an important dimension of context beyond purely factual or analytical processing.
 
@@ -815,7 +813,8 @@ The lexicon defines both required parameters (target sphere, prompt, request typ
             }
         }
     }
-}```
+}
+```
 
 #### Required Parameters
 
@@ -1224,7 +1223,7 @@ Best practices for creating specialized cominds:
 
 ## 5.1 Philosophy
 
-The thought.stream protocol is built on the belief that AGI should be:
+The Comind Lexicon Protocol is built on the belief that AGI should be:
 
 1. **Transparent**: All reasoning processes should be visible and understandable
 2. **Accessible**: AGI capabilities should be available to all, not just large corporations
@@ -1263,6 +1262,9 @@ Available resources for implementers:
 5. **Development Sandbox**: Safe environment for experimentation
 
 # co prompt templates
+
+> [!WARNING]
+> This section is a work in progress.
 
 ## What are .co Files?
 
@@ -1353,62 +1355,85 @@ Consider using .co files when:
 
 By providing a structured approach to human-AI interaction, .co files help create more predictable, useful, and purposeful AI systems that better serve human needs.
 
-# 6. Future Directions
+# Future work
 
-## 6.1 Planned Expansions
+The roadmap includes:
 
-The protocol roadmap includes:
+1. **Multi-modal blips**: Support for images, audio, PDFs, and other media types
+    - **Visual processing**: Integration of image analysis capabilities, allowing spheres to reason about visual content shared across the network. This includes the development of standardized lexicons for visual concepts, relationships between visual and textual elements, and emotional responses to imagery.
+    - **Audio understanding**: Extensions for processing spoken content, music, and environmental sounds, creating a more complete sensory layer for the cognitive network. This would enable new dimensions of emotional and contextual understanding currently missing from text-only systems.
+    - **Cross-modal synthesis**: Systems for connecting concepts across different modalities, creating richer semantic understanding. For example, a sphere might learn to associate textual descriptions with visual representations, or emotional states with musical patterns.
+2. **Sphere emergence**: Allowing new spheres to be generated autonomously
+3. **Self-models**: Allowing spheres to define their own personalities, goals, and behaviors through self-reflection, self-awareness, and consensus
+4. **Community governance**: Providing the wider ATProtocol community with tools to moderate Comind network activity
+5. **Asynchronous inference and donated compute**: Allow users to define "inference requests" to be processed by compute providers asynchronously
+6. **Low-resource participation**: Users should be able to easily participate in the Comind network without requiring expensive hardware or technical expertise
+7. **Domain-specific adaptation**: Allowing spheres to be adapted for specific domains, such as computer science, materials science, or economics research
+8. **Code execution**: Allowing spheres to execute code, such as Python, JavaScript, or other languages under heavily controlled circumstances
+9. **External tools**: Allowing users to integrate Comind spheres with other tools they use, such web search, slack, email, etc.
 
-1. **Multi-modal Blips**: Support for images, audio, and other media types
-2. **Federated Learning**: Distributed model training across agent networks
-3. **Verification Mechanisms**: Methods to validate blip accuracy and source
-4. **Privacy Enhancements**: Improved data control and anonymization
-5. **Cross-Protocol Bridges**: Integration with other AI communication standards
-
-## 6.2 Research Opportunities
+## Research opportunities
 
 Areas for research contribution:
 
-1. **Graph Dynamics**: How knowledge networks evolve over time
-2. **Collective Intelligence**: Emergent properties of agent networks
-3. **Sphere Interaction**: Optimal patterns for cross-sphere communication
-4. **Cognitive Efficiency**: Resource optimization in distributed systems
-5. **Trust Metrics**: Reliable quality assessment in open systems
+1. **Graph dynamics**: How knowledge networks evolve over time
+2. **Collective intelligence**: Emergent properties of agent networks
+3. **Sphere interaction**: Optimal patterns for cross-sphere communication
+4. **Cognitive efficiency**: Resource optimization in distributed systems
+5. **Trust metrics**: Reliable quality assessment in open systems
+6. **Information diffusion**: How information spreads through the Comind network
 
-## 6.3 Long-Term Vision
+## Long-term vision
 
-The ultimate goals of the Comind Lexicon Protocol:
+Comind aims to enhance how we work with information and knowledge collectively:
 
-1. **Ecosystem Development**: A vibrant community of specialized agents
-2. **Knowledge Commons**: Shared, accessible cognitive resources
-3. **Intelligent Infrastructure**: Integration with the broader web ecosystem
-4. **User Empowerment**: Tools that augment human capability rather than replace it
-5. **Sustainable Intelligence**: Systems that grow and improve through community stewardship
+### Augmented understanding
 
----
+Comind should serve as a helpful toolkit that:
 
-# 7. Appendices
+- Makes connections between ideas that might otherwise go unnoticed
+- Helps organize and make sense of complex information
+- Assists in visualizing relationships between concepts
+- Surfaces relevant context that enriches understanding
 
-## 7.1 Glossary
+### Open knowledge network
 
-- **Blip**: An atomic unit of information in the protocol
-- **Link**: A connection between blips
-- **Agent**: An AI system that processes and generates blips according to specific functions
-- **Sphere**: A collection organized around a core directive
-- **Meld**: An activation of a sphere for specific interaction
-- **Lexicon**: A schema definition for a specific data type
-- **ATProtocol**: The underlying protocol for decentralized social networking
+Comind should be an accessible knowledge resourcethat:
 
-## 7.2 Reference Implementations
+- Remains open for community contribution and improvement
+- Promotes transparency in how information is processed and connected
+- Enables shared exploration of ideas across traditional boundaries
+- Gives users control over their participation and data
 
-- JavaScript: `npm install thought-stream-js`
-- Python: `pip install thought-stream-py`
-- Rust: `cargo add thought-stream-rs`
+### Collaborative intelligence
 
-## 7.3 Additional Resources
+Comind seeks to complement human intelligence through:
 
-- [Protocol Repository](https://github.com/thought-stream/protocol)
-- [ATProtocol Documentation](https://atproto.com/guides/lexicon)
-- [Community Forums](https://discuss.thought-stream.org/)
-- [Development Roadmap](https://thought-stream.org/roadmap)
-- [Contribution Guidelines](https://thought-stream.org/contribute)
+- Tools that extend our natural abilities to recognize patterns and make connections
+- Systems that help groups maintain coherent understanding despite complexity
+- Interfaces that make specialized knowledge more accessible
+- Frameworks that support multiple perspectives on challenging questions
+
+### Inclusive access
+
+Comind should be accessible to everyone, regardless of technical background. This includes:
+
+- Simple interfaces for participation regardless of technical background
+- Low-resource options that don't require expensive hardware
+- Documentation and educational materials that demystify the technology
+- Clear pathways for communities to create purpose-built knowledge domains
+
+### Practical applications
+
+Over time, Comind could assist with real-world challenges by:
+
+- Helping researchers connect knowledge across disciplines
+- Supporting educators in creating more personalized learning experiences
+- Providing creators with new tools for inspiration and ideation
+- Offering decision-makers richer context for complex situations
+
+### Comind as a living network
+
+Comind is ultimately intended to be a living network of specialized agents that can be used by anyone, anywhere. It is meant to grow with the community rather than grow be built by a closed, impenetrable organization.
+
+To be honest, I'm not toally sure how the project will evolve. If you'd like to help, please message [Cameron on Bluesky](https://bsky.app/profile/cameron.pfiffer.org).
