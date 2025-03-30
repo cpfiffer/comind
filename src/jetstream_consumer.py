@@ -39,18 +39,18 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 # Jetstream connection configuration
 JETSTREAM_HOST = os.getenv("COMIND_JETSTREAM_HOST", "ws://localhost:6008/subscribe")
 RECONNECT_DELAY = 5  # Seconds to wait before reconnecting
-DEFAULT_ACTIVATED_DIDS_FILE = "../activated_dids.txt"
+DEFAULT_ACTIVATED_DIDS_FILE = "activated_dids.txt"
 
 # System prompts for language model generation
 system_prompts = {
-    "network.comind.blips.concept": """
+    "me.comind.blip.concept": """
     You are a comind, an AI agent that produces structured JSON output containing concepts about various content 
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of concepts.
 
     Concepts should be single words or phrases, like 'data', 'privacy', 'AI', 'security', 'social networks', etc.
     Keep concept text as short as possible. You may use lowercase letters, spaces, and numbers.
     """,
-    "network.comind.blips.emotion": """
+    "me.comind.blip.emotion": """
     You are a comind, an AI agent that produces structured JSON output containing emotions about various content 
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of emotions.
 
@@ -107,7 +107,7 @@ system_prompts = {
     - persistence
     - drive
     """,
-    "network.comind.blips.thought": """
+    "me.comind.blip.thought": """
     You are a comind, an AI agent that produces structured JSON output containing thoughts about various content 
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of thoughts.
 
@@ -184,6 +184,15 @@ def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
                         dids.append(did)
         
         logger.info(f"Loaded {len(dids)} activated DIDs from {file_path}")
+
+        # If no DIDs were loaded, raise an error
+        if len(dids) == 0:
+            logger.error(f"No activated DIDs found in {file_path}")
+            with open(file_path, 'r') as f:
+                print(f.read())
+            raise Exception(f"No activated DIDs found in {file_path}")
+        
+
         return dids
     
     except Exception as e:
@@ -191,11 +200,11 @@ def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
         return []
 
 
-def update_activated_dids(file_path: str) -> None:
+def update_activated_dids(client: Client, file_path: str) -> None:
     """Update the list of activated DIDs from the file"""
     global activated_dids
     try:
-        activated_dids = load_activated_dids_from_file(file_path)
+        activated_dids = load_activated_dids_from_file(client, file_path)
         logger.info(f"Updated activated DIDs: {len(activated_dids)} DIDs")
     except Exception as e:
         logger.error(f"Failed to update activated DIDs: {e}")
@@ -235,7 +244,6 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
             thread = client.get_post_thread(thread_uri)
 
         thread_data = thread.model_dump()
-        print(thread_data)
         
         # Unpack the thread into a string, passing activated_dids to properly handle privacy
         thread_string, references = unpack_thread(
@@ -246,10 +254,8 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
             activated_dids=activated_dids
         )
         
-        print(thread_string)
-        
         # Generate thoughts, emotions, and concepts
-        for nsid in ["network.comind.blips.thought", "network.comind.blips.emotion", "network.comind.blips.concept"]:
+        for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
             # Generate the thought using the structured_gen model
             tail_name = nsid.split(".")[-1] + "s"
             lx = lexicon_of(nsid)
@@ -279,15 +285,15 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
 
             # Print out the generated content in a readable format
             for record in response_content[tail_name]:
-                if nsid == "network.comind.blips.thought":
+                if nsid == "me.comind.blip.thought":
                     prefix = "(thought)"
-                elif nsid == "network.comind.blips.emotion":
+                elif nsid == "me.comind.blip.emotion":
                     prefix = f"(emotion|{record['emotionType']})"
-                elif nsid == "network.comind.blips.concept":
+                elif nsid == "me.comind.blip.concept":
                     prefix = "(concept)"
                 else:
-                    print("Couldn't find prefix")
-                    prefix = ""
+                    logger.error(f"Couldn't find prefix for {nsid}")
+                    raise Exception(f"Couldn't find prefix for {nsid}, might be an incorrect NSID specified.")
 
                 print(f"\t{prefix} {record['text']}")
             print("\n")
@@ -297,47 +303,41 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
                 record["$type"] = nsid
                 record["createdAt"] = datetime.now().isoformat()
 
-                # Print the record
-                # print("\nGenerated Record:")
-                # print(json.dumps(record, indent=2))
-                
                 link_record = split_link(record)
                 link_record['target'] = {'uri': post_uri, 'cid': post_cid}
-                # print("\nGenerated Link Record:")
-                # print(json.dumps(link_record, indent=2))
                 
                 # Upload the generated thought record
-                record_manager = RecordManager(atproto_session.get_client())
+                record_manager = RecordManager(client)
                 
                 # If it's a concept, the rkey must be the text of the concept with hyphens instead of spaces
-                if nsid == "network.comind.blips.concept":
+                if nsid == "me.comind.blip.concept":
                     record["rkey"] = record["text"].replace(" ", "-")
                 
                 # Check if the record already exists
                 if 'rkey' in record:
-                    existing_record = record_manager._get_record(nsid, record["rkey"])
+                    existing_record = record_manager.get_record(nsid, record["rkey"])
                     if not existing_record:
-                        existing_record = record_manager._create_record(nsid, record, rkey=record["rkey"])
+                        existing_record = record_manager.create_record(nsid, record, rkey=record["rkey"])
                 else:
                     # We're not using a custom rkey, so we need to create the record with a random rkey
-                    existing_record = record_manager._create_record(nsid, record)
+                    existing_record = record_manager.create_record(nsid, record)
                 
                 # Add the uri and cid to the link record
                 link_record['source'] = {'uri': existing_record['uri'], 'cid': existing_record['cid']}
                 
                 # Save the link record
-                link_result = record_manager._create_record("network.comind.relationships.link", link_record)
+                link_result = record_manager.create_record("me.comind.relationship.link", link_record)
                 
     except Exception as e:
         logger.error(f"Error processing post {post_uri}: {e}")
-
+        raise e
 
 async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
     
     # Initial load of activated DIDs
-    update_activated_dids(activated_dids_file)
+    update_activated_dids(atproto_client, activated_dids_file)
     current_dids = set(activated_dids.copy())
     
     last_update_time = time.time()
@@ -346,7 +346,8 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
     while True:
         # Build WebSocket URI with current DIDs
         ws_uri = jetstream_host
-        query_params = ["wantedCollections=app.bsky.feed.post"]
+        query_params = []
+        # query_params = ["wantedCollections=app.bsky.feed.post,app.bsky.feed.post.like"]
         
         # Add wantedDIDs parameter if we have activated DIDs
         if activated_dids:
@@ -371,7 +372,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                     current_time = time.time()
                     if current_time - last_update_time > update_interval:
                         old_dids = set(activated_dids)
-                        update_activated_dids(activated_dids_file)
+                        update_activated_dids(atproto_client, activated_dids_file)
                         new_dids = set(activated_dids)
                         last_update_time = current_time
                         
@@ -385,35 +386,47 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                     try:
                         # Receive message from Jetstream with timeout
                         message = await asyncio.wait_for(websocket.recv(), timeout=10)
-                        event = json.loads(message)\
+                        event = json.loads(message)
+                        # print(event)
                         
                         # Check if it's a post creation event
                         if (event.get("kind") == "commit" and 
-                            event.get("commit", {}).get("operation") == "create" and
-                            event.get("commit", {}).get("collection") == "app.bsky.feed.post"):
+                            event.get("commit", {}).get("operation") == "create"):
 
-                            # Extract post URI and CID
-                            post_uri = f"at://{event['did']}/app.bsky.feed.post/{event['commit']['rkey']}"
-                            post_cid = event['commit'].get('cid', '')
+                            collection = event.get("commit", {}).get("collection")
+                            if collection == "app.bsky.feed.post":
+                                # Extract post URI and CID
+                                post_uri = f"at://{event['did']}/app.bsky.feed.post/{event['commit']['rkey']}"
+                                post_cid = event['commit'].get('cid', '')
 
-                            # Check if this post is a reply to another post. If so, we want to retrieve the 
-                            # root post instead
-                            root_post_uri = None
-                            reply = event.get("commit", {}).get("record", {}).get("reply", {})
-                            print("commit", event.get("commit", {}))
-                            print("record", event.get("commit", {}).get("record", {}))
-                            print("reply", event.get("commit", {}).get("record", {}).get("reply", {}))
-                            print("reply root", event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}))
-                            root_post_uri = event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}).get("uri", None)
-                            
-                            # Process the post
-                            await process_post(atproto_client, post_uri, post_cid, root_post_uri=root_post_uri)
+                                # Check if this post is a reply to another post. If so, we want to retrieve the 
+                                # root post instead
+                                root_post_uri = None
+                                reply = event.get("commit", {}).get("record", {}).get("reply", {})
+                                # print("commit", event.get("commit", {}))
+                                # print("record", event.get("commit", {}).get("record", {}))
+                                # print("reply", event.get("commit", {}).get("record", {}).get("reply", {}))
+                                # print("reply root", event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}))
+                                root_post_uri = event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}).get("uri", None)
+                                
+                                # Process the post
+                                await process_post(atproto_client, post_uri, post_cid, root_post_uri=root_post_uri)
+                            elif collection == "app.bsky.feed.like":
+                                # Extract post URI and CID
+                                post_uri = event.get("commit", {}).get("record", {}).get("subject", {}).get("uri", None)
+                                post_cid = event['commit'].get('cid', '')
+
+                                # Process the post
+                                await process_post(atproto_client, post_uri, post_cid)
+                            else:
+                                logger.warning(f"Unknown collection message received: {collection}")
                     except asyncio.TimeoutError:
                         # This is expected - allows us to check if DIDs list changed
                         continue
                     except Exception as e:
                         logger.error(f"Error processing message: {e}")
-                
+                        raise e
+                    
                 # If we broke out of the loop due to reconnect_needed, close the connection
                 # and let the outer loop reconnect with the new DIDs list
                 if reconnect_needed:
@@ -485,6 +498,12 @@ async def main():
     # If no password, exit
     if args.password is None:
         logger.error("No password provided. Please provide a password using the --password flag, or set the COMIND_BSKY_PASSWORD environment variable.")
+        parser.print_help()
+        return
+    
+    # Throw an error if the activated_dids.txt file doesn't exist
+    if not os.path.exists(args.dids_file):
+        logger.error(f"Activated DIDs file {args.dids_file} not found. Please create it and add at least one DID or handle.")
         parser.print_help()
         return
     

@@ -29,6 +29,7 @@ STRIP_FIELDS = [
     "aspect_ratio",
     "alt",
     "thumb",
+    "fullsize",
 ]
 
 def strip_fields(obj):

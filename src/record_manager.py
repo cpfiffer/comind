@@ -102,7 +102,7 @@ class RecordManager:
             
         try:
             response = self.client.com.atproto.repo.create_record(create_params)
-            logger.info(f"Successfully created record: {response.get('uri', 'Unknown URI')}")
+            logger.info(f"Successfully created {collection} record. URI: {response.uri}, CID: {response.cid}")
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)
             return response
