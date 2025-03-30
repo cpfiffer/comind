@@ -1,3 +1,4 @@
+from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 import asyncio
@@ -15,6 +16,7 @@ from src.bsky_utils import (
     lexicon_of,
     multiple_of_schema,
     split_link,
+    strip_fields,
     unpack_thread,
 )
 import src.structured_gen as structured_gen
@@ -40,6 +42,44 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 JETSTREAM_HOST = os.getenv("COMIND_JETSTREAM_HOST", "ws://localhost:6008/subscribe")
 RECONNECT_DELAY = 5  # Seconds to wait before reconnecting
 DEFAULT_ACTIVATED_DIDS_FILE = "activated_dids.txt"
+
+# Cache of user DID/handle/display name. Used for language model 
+# context, and to handle privacy.
+class UserInfo(BaseModel):
+    did: str
+    handle: str
+    display_name: str
+    description: str
+
+class UserInfoCache(BaseModel):
+    cache: dict[str, UserInfo] = Field(default_factory=dict)
+    
+    def get_user_info(self, did: str) -> UserInfo:
+        return self.cache.get(did)
+    
+    def add_user_info(self, did: str, user_info: UserInfo):
+        self.cache[did] = user_info
+
+    def save(self, file_path: str):
+        with open(file_path, "w") as f:
+            json.dump(self.cache, f)
+
+    def contains(self, did: str) -> bool:
+        return did in self.cache
+
+    def load(self, file_path: str):
+        if not os.path.exists(file_path):
+            logger.info(f"User info cache file {file_path} not found, creating empty file")
+            with open(file_path, "w") as f:
+                pass
+            return
+        with open(file_path, "r") as f:
+            text = f.read().strip()
+            if not text:
+                return
+            json_cache = json.loads(text)
+            for did, user_info in json_cache.items():
+                self.cache[did] = UserInfo(**user_info)
 
 # System prompts for language model generation
 system_prompts = {
@@ -132,19 +172,22 @@ def is_did(text: str) -> bool:
     return text.startswith('did:')
 
 
-def resolve_handle_to_did(client, handle: str) -> Optional[str]:
+def resolve_handle_to_did(client, handle: str, user_info_cache: UserInfoCache) -> Optional[str]:
     """Resolve a handle to a DID using the ATProto client"""
-    try:
-        did = client.resolve_handle(handle).did
-        logger.info(f"Resolved handle {handle} to DID {did}")
-        return did
-    except Exception as e:
-        logger.error(f"Error resolving handle {handle}: {e}")
-        logger.warning(f"Skipping handle {handle} due to resolution error")
-        return None
+    if user_info_cache.contains(handle):
+        user_info = user_info_cache.get_user_info(handle)
+        did = user_info.did
+    else:
+        user_info = client.get_profile(handle)
+        handle = user_info.handle
+        display_name = user_info.display_name
+        did = user_info.did
+        description = user_info.description
+        user_info_cache.add_user_info(did, UserInfo(did=did, handle=handle, display_name=display_name, description=description))
 
+    return did
 
-def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
+def load_activated_dids_from_file(client: Client, file_path: str, user_info_cache: UserInfoCache) -> List[str]:
     """Load activated DIDs from a text file
     
     The file can contain either DIDs (starting with 'did:') or handles.
@@ -177,9 +220,10 @@ def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
                 # If it's already a DID, add it directly
                 if is_did(identifier):
                     dids.append(identifier)
+
                 # Otherwise, resolve the handle to a DID
                 else:
-                    did = resolve_handle_to_did(client, identifier)
+                    did = resolve_handle_to_did(client, identifier, user_info_cache)
                     if did:
                         dids.append(did)
         
@@ -200,25 +244,33 @@ def load_activated_dids_from_file(client: Client, file_path: str) -> List[str]:
         return []
 
 
-def update_activated_dids(client: Client, file_path: str) -> None:
+def update_activated_dids(client: Client, file_path: str, user_info_cache: UserInfoCache) -> None:
     """Update the list of activated DIDs from the file"""
     global activated_dids
     try:
-        activated_dids = load_activated_dids_from_file(client, file_path)
+        activated_dids = load_activated_dids_from_file(client, file_path, user_info_cache)
         logger.info(f"Updated activated DIDs: {len(activated_dids)} DIDs")
     except Exception as e:
         logger.error(f"Failed to update activated DIDs: {e}")
         # Keep existing list if update fails
 
 
-async def process_post(client: Client, post_uri: str, post_cid: str, root_post_uri: str = None) -> None:
-    """Process a post and generate thoughts, emotions, and concepts for it"""
+async def process_event(
+        client: Client, 
+        author_did: str,
+        event_kind: str, 
+        post_uri: str, 
+        post_cid: str, 
+        root_post_uri: str = None, 
+        user_info_cache: UserInfoCache = None
+    ) -> None:
+    """Process an event and generate thoughts, emotions, and concepts for it"""
     try:
         # Skip if the post has already been processed
         if post_uri in processed_posts:
             return
             
-        logger.info(f"Processing post: {post_uri}")
+        logger.info(f"Processing event: {event_kind} {post_uri}")
         
         # Add to processed posts and manage memory
         processed_posts.add(post_uri)
@@ -253,6 +305,38 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
             max_quoted_thread_depth=2,
             activated_dids=activated_dids
         )
+
+        # Author handle
+        actor_info = user_info_cache.get_user_info(author_did)
+        if actor_info is None:
+            logger.error(f"Actor info not found for post {post_uri}")
+            return
+        
+        # Info premble
+        user_info_preamble = f"## User information\nDisplay name: {actor_info.display_name}\nHandle: {actor_info.handle}\nDescription: {actor_info.description}"
+        context_preamble = f"## Context\n{thread_string}"
+        instructions_preamble = "## Instructions\nPlease respond."
+        
+        # Get the target post
+        target_post = client.get_posts([post_uri]).posts[0]
+        stripped_target_post = yaml.dump(strip_fields(target_post.model_dump()), indent=2)
+
+        if event_kind == "app.bsky.feed.post":
+            target_post_string = f"## New post\n{actor_info.display_name} ({actor_info.handle}) has made a new post. Here is the post:\n{stripped_target_post}"
+        elif event_kind == "app.bsky.feed.like":
+            target_post_string = f"## New like\n{actor_info.display_name} ({actor_info.handle}) has liked a post. Here is the post:\n{stripped_target_post}"
+        else:
+            raise Exception(f"Unknown event kind: {event_kind}")
+        
+        rows = [
+            "# Overview",
+            user_info_preamble,
+            target_post_string,
+            context_preamble,
+            instructions_preamble,
+        ]
+
+        prompt = "\n\n".join(rows)
         
         # Generate thoughts, emotions, and concepts
         for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
@@ -261,9 +345,6 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
             lx = lexicon_of(nsid)
             add_property(lx, "connection_to_content", link_schema, required=True)
             schema = multiple_of_schema(tail_name, lx)
-            
-            # Add the thread string to the prompt
-            prompt = f"# Context\n{thread_string}\n\n# Instructions\nPlease respond."
             
             # Print a separator panel
             print(Panel.fit(prompt, title=nsid))
@@ -281,23 +362,8 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
             
             # Print the generated content
             print(f"\nGenerated {tail_name}:")
-            # print(json.dumps(response_content, indent=2))
+            print(yaml.dump(response_content))
 
-            # Print out the generated content in a readable format
-            for record in response_content[tail_name]:
-                if nsid == "me.comind.blip.thought":
-                    prefix = "(thought)"
-                elif nsid == "me.comind.blip.emotion":
-                    prefix = f"(emotion|{record['emotionType']})"
-                elif nsid == "me.comind.blip.concept":
-                    prefix = "(concept)"
-                else:
-                    logger.error(f"Couldn't find prefix for {nsid}")
-                    raise Exception(f"Couldn't find prefix for {nsid}, might be an incorrect NSID specified.")
-
-                print(f"\t{prefix} {record['text']}")
-            print("\n")
-            
             # Convert each record to the record format
             for record in response_content[tail_name]:
                 record["$type"] = nsid
@@ -310,6 +376,7 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
                 record_manager = RecordManager(client)
                 
                 # If it's a concept, the rkey must be the text of the concept with hyphens instead of spaces
+                # TODO: #2 RecordManager should handle default rkeys for concepts
                 if nsid == "me.comind.blip.concept":
                     record["rkey"] = record["text"].replace(" ", "-")
                 
@@ -335,9 +402,13 @@ async def process_post(client: Client, post_uri: str, post_cid: str, root_post_u
 async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
+
+    # Initialize the user info cache
+    user_info_cache = UserInfoCache()
+    user_info_cache.load("user_info_cache.json")
     
     # Initial load of activated DIDs
-    update_activated_dids(atproto_client, activated_dids_file)
+    update_activated_dids(atproto_client, activated_dids_file, user_info_cache)
     current_dids = set(activated_dids.copy())
     
     last_update_time = time.time()
@@ -372,7 +443,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                     current_time = time.time()
                     if current_time - last_update_time > update_interval:
                         old_dids = set(activated_dids)
-                        update_activated_dids(atproto_client, activated_dids_file)
+                        update_activated_dids(atproto_client, activated_dids_file, user_info_cache)
                         new_dids = set(activated_dids)
                         last_update_time = current_time
                         
@@ -387,7 +458,10 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                         # Receive message from Jetstream with timeout
                         message = await asyncio.wait_for(websocket.recv(), timeout=10)
                         event = json.loads(message)
-                        # print(event)
+                        author_did = event.get("did", None)
+                        if author_did is None:
+                            logger.warning(f"No author DID found in event: {event}")
+                            raise Exception(f"No author DID found in event: {event}")
                         
                         # Check if it's a post creation event
                         if (event.get("kind") == "commit" and 
@@ -410,14 +484,29 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                                 root_post_uri = event.get("commit", {}).get("record", {}).get("reply", {}).get("root", {}).get("uri", None)
                                 
                                 # Process the post
-                                await process_post(atproto_client, post_uri, post_cid, root_post_uri=root_post_uri)
+                                await process_event(
+                                    atproto_client,
+                                    author_did,
+                                    collection, 
+                                    post_uri, 
+                                    post_cid, 
+                                    root_post_uri=root_post_uri,
+                                    user_info_cache=user_info_cache
+                                )
                             elif collection == "app.bsky.feed.like":
                                 # Extract post URI and CID
                                 post_uri = event.get("commit", {}).get("record", {}).get("subject", {}).get("uri", None)
                                 post_cid = event['commit'].get('cid', '')
 
                                 # Process the post
-                                await process_post(atproto_client, post_uri, post_cid)
+                                await process_event(
+                                    atproto_client,
+                                    author_did,
+                                    collection, 
+                                    post_uri, 
+                                    post_cid, 
+                                    user_info_cache=user_info_cache
+                                )
                             else:
                                 logger.warning(f"Unknown collection message received: {collection}")
                     except asyncio.TimeoutError:

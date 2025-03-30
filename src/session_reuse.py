@@ -36,7 +36,15 @@ def on_session_change(username: str, event: SessionEvent, session: Session) -> N
 
 
 def init_client(username: str, password: str) -> Client:
-    client = Client()
+    pds_uri = os.getenv("COMIND_PDS_URI")
+    if pds_uri is None:
+        logger.warning("No PDS URI provided. Falling back to bsky.social. Note! If you are on a non-Bluesky PDS, this can cause logins to fail. Please provide a PDS URI using the COMIND_PDS_URI environment variable.")
+        pds_uri = "https://bsky.social"
+        
+    # Print the PDS URI
+    logger.info(f"Using PDS URI: {pds_uri}")
+
+    client = Client(pds_uri)
     client.on_session_change(lambda event, session: on_session_change(username, event, session))
 
     session_string = get_session(username)
