@@ -1,10 +1,9 @@
 ---
 title: "Docs"
 date: 2025-03-28T17:35:58-07:00
-draft: true
+draft: false
 ---
 
-#comind
 # Overview
 
 Comind is a open-source project to construct a cognitive layer for the open web.
