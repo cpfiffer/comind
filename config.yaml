@@ -1,6 +1,11 @@
 # Hugo configuration file
 title: Comind
 
+# https://gohugo.io/host-and-deploy/host-on-github-pages/#step-1
+caches:
+  images:
+    dir: :cacheDir/images
+
 # import hextra as module
 module:
   imports:
