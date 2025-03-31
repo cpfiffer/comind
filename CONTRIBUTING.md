@@ -4,6 +4,9 @@ Comind is a community-driven project to build a cognitive layer for the open web
 
 This project is a nightmare currently, so please be patient as we work out the kinks.
 
+> [!NOTE]
+> Comind welcomes AI-generated content. However, note that it is **your responsibility** to ensure that the content you generate is of high quality. Please do not submit slop.
+
 ## How to Contribute
 
 ### Discussions and Ideas
