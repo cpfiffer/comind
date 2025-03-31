@@ -21,3 +21,4 @@ There are a few ways to get involved:
 - [Contribute to the project](CONTRIBUTING.md)
 - [Provide feedback, ideas, and suggestions](https://github.com/cpfiffer/comind/issues)
 - [Spread the word](https://bsky.app/profile/cameron.pfiffer.org)
+- Follow the [project account on Bluesky](https://bsky.app/profile/comind.stream)
