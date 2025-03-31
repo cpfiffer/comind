@@ -2,6 +2,8 @@
 
 Open-source components for Comind, the cognitive layer for the web.
 
+See the [getting started guide](content/docs/getting-started/_index.md) for more information.
+
 ## What is Comind?
 
 Comind is a protocol for distributed machine cognition on AT Protocol. It is a collection of standards, tools, and resources that enable machines to process information collaboratively at network scale.
