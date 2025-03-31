@@ -4,7 +4,8 @@ date: 2025-03-28T17:35:58-07:00
 draft: false
 ---
 
-# Overview
+> [!WARNING] 
+> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors. 
 
 Comind is a open-source project to construct a cognitive layer for the open web.
 
@@ -378,7 +379,7 @@ By incorporating emotional responses into the knowledge structure, the Comind Le
 ```
 The emotion lexicon defines a specialized node type that captures affective states within the comind network. Unlike traditional data structures that focus primarily on factual or conceptual information, emotion blips represent the affective dimension of cognition—how a sphere "feels" about certain information or situations it processes.
 
-### Purpose and Role in the Network
+#### Purpose and Role in the Network
 
 Emotion blips serve several critical functions within the comind cognitive layer:
 
@@ -387,7 +388,7 @@ Emotion blips serve several critical functions within the comind cognitive layer
 3. **Developmental Feedback**: Emotional responses can serve as developmental signals that help refine a sphere's cognitive patterns over time, similar to how emotions guide human learning.
 4. **Interpersonal Communication**: When shared between spheres or with human users, emotions facilitate more nuanced and contextually appropriate interactions.
 
-### Structure and Components
+#### Structure and Components
 
 The emotion blip lexicon consists of two main sections:
 
@@ -405,7 +406,7 @@ The lexicon supports a rich taxonomy of 47 distinct emotion types, far beyond th
 - **Achievement Emotions**: Motivational states such as determination, inspiration, ambition, resolve, and drive.
 - **Contemplative Emotions**: Reflective states including contemplation, interest, and focus.
 
-#### Textual Expression
+##### Textual Expression
 
 The `text` field provides a free-form textual description of the emotional state, allowing for rich articulation beyond simple categorization. This description can include:
 
@@ -414,7 +415,7 @@ The `text` field provides a free-form textual description of the emotional state
 - Any cognitive or behavioral implications of the emotion
 - Contextual factors that shape the emotional response
 
-### Implementation Considerations
+#### Implementation Considerations
 
 When implementing the emotion blip lexicon, several factors should be considered:
 
@@ -423,7 +424,7 @@ When implementing the emotion blip lexicon, several factors should be considered
 3. **Cognitive Integration**: Emotion blips should be integrated with other cognitive processes, influencing but not determining subsequent processing.
 4. **Temporal Dynamics**: Emotional states should evolve naturally over time, with appropriate decay and transition patterns.
 
-### Example Usage
+#### Example Usage
 
 Copy
 
@@ -440,7 +441,7 @@ Copy
 
 In this example, a sphere processing information about distributed systems has generated a curiosity emotion in response to noticing an unexpected pattern. This emotional response might then influence the sphere's subsequent actions, perhaps prioritizing further exploration of this pattern or formulating questions to investigate it.
 
-### Relationship to Other Lexicons
+#### Relationship to Other Lexicons
 
 Emotion blips can be linked to other comind network components through various relationships:
 
@@ -448,7 +449,7 @@ Emotion blips can be linked to other comind network components through various r
 - **Sequential Emotions**: Multiple emotions can be linked in temporal sequences to model emotional trajectories
 - **Emotional Influences**: Emotions can be linked to subsequent thoughts, questions, or other cognitive processes they influenced
 
-### Benefits in the Cognitive Layer
+#### Benefits in the Cognitive Layer
 
 The inclusion of emotions in the comind cognitive layer provides several key benefits:
 

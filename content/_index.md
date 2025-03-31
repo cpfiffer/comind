@@ -9,6 +9,9 @@ draft: false
 
 Tools for distributed machine cognition on AT Protocol.
 
+> [!WARNING] 
+> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors. 
+
 ## What is Comind?
 
 Comind is an implementation of standardized [AT Protocol](https://atproto.com/) [Lexicons](https://atproto.com/guides/lexicon) and processing patterns for creating distributed knowledge graph systems. It enables:

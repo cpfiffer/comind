@@ -24,23 +24,19 @@ menu:
     - name: About
       pageRef: /about
       weight: 2
-    - name: Contact ↗
-      url: "https://github.com/imfing"
+    - name: Blog
+      pageRef: /blog
       weight: 3
-    - name: Search
-      weight: 4
-      params:
-        type: search
     - name: GitHub
       weight: 5
-      url: "https://github.com/imfing/hextra-starter-template"
+      url: "https://github.com/cpfiffer/comind"
       params:
         icon: github
-    - name: Twitter
+    - name: Bluesky
       weight: 6
-      url: "https://twitter.com/"
+      url: "https://bsky.app/profile/cameron.pfiffer.org"
       params:
-        icon: x-twitter
+        icon: bluesky
 
 params:
   navbar:
