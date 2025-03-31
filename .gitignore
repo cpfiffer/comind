@@ -4,3 +4,4 @@ public/
 .DS_Store
 session_*.txt
 user_info_cache.json
+*.pyc
