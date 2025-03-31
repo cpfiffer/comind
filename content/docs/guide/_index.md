@@ -179,6 +179,7 @@ This structure encourages AI systems to engage in balanced reasoning that consid
 Thoughts serve as connection points between concepts, questions, and other cognitive artifacts. They form the "processing layer" of the distributed knowledge system, where raw information is transformed into contextualized understanding.
 
 When generating thoughts, AI systems should aim for clarity, evidence-based reasoning, and intellectual honesty in acknowledging alternative perspectives. This approach helps build a knowledge ecosystem that evolves through collaborative, multi-perspective reasoning rather than singular assertions.
+
 ### Concept
 
 Concepts represent fundamental semantic units within the Comind Lexicon. They serve as the atomic building blocks that allow AI systems to organize, connect, and retrieve knowledge across distributed networks.
@@ -256,7 +257,10 @@ The definition:
         }
     }
 }
-````
+```
+
+> [!NOTE]
+> The `(PATTERN OF 'text': [a-z0-9 ]+)` in the `description` field -- this is a hacky way to enforce a regular expression on the output of the `text` field. This is stuffed into the description field because Lexicon does not support the `pattern` field from the JSON schema specification. The reference implementation extracts this pattern and uses it to enforce the `text` field.
 
 ### Emotion
 
