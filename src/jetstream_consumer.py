@@ -262,6 +262,7 @@ async def process_event(
         post_uri: str, 
         post_cid: str, 
         root_post_uri: str = None, 
+        thread_depth: int = 2,
         user_info_cache: UserInfoCache = None
     ) -> None:
     """Process an event and generate thoughts, emotions, and concepts for it"""
@@ -288,10 +289,11 @@ async def process_event(
         
         # Use depth=0 to fetch the complete thread with all replies
         # This ensures we get all branches of the conversation
+        # TODO: #4 Provide post thread sampling to limit token usage
         try:
-            thread = client.get_post_thread(thread_uri, depth=None)
+            thread = client.get_post_thread(thread_uri, depth=thread_depth)
         except Exception as thread_error:
-            logger.error(f"Error getting thread with depth=None: {thread_error}")
+            logger.error(f"Error getting thread with depth={thread_depth}: {thread_error}")
             logger.info("Falling back to default thread retrieval")
             thread = client.get_post_thread(thread_uri)
 
@@ -399,7 +401,7 @@ async def process_event(
         logger.error(f"Error processing post {post_uri}: {e}")
         raise e
 
-async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST) -> None:
+async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST, thread_depth: int = 2) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
 
@@ -417,8 +419,12 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
     while True:
         # Build WebSocket URI with current DIDs
         ws_uri = jetstream_host
+        # Initialize query params as an empty list
         query_params = []
-        # query_params = ["wantedCollections=app.bsky.feed.post,app.bsky.feed.post.like"]
+        
+        # Add individual collection parameters
+        query_params.append("wantedCollections=app.bsky.feed.post")
+        query_params.append("wantedCollections=app.bsky.feed.like")
         
         # Add wantedDIDs parameter if we have activated DIDs
         if activated_dids:
@@ -491,6 +497,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                                     post_uri, 
                                     post_cid, 
                                     root_post_uri=root_post_uri,
+                                    thread_depth=thread_depth,
                                     user_info_cache=user_info_cache
                                 )
                             elif collection == "app.bsky.feed.like":
@@ -505,6 +512,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                                     collection, 
                                     post_uri, 
                                     post_cid, 
+                                    thread_depth=thread_depth,
                                     user_info_cache=user_info_cache
                                 )
                             else:
@@ -513,8 +521,12 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                         # This is expected - allows us to check if DIDs list changed
                         continue
                     except Exception as e:
-                        logger.error(f"Error processing message: {e}")
-                        raise e
+                        # Check if "maximum context length is" is in the error message
+                        if "maximum context length is" in str(e):
+                            logger.error("Maximum context length exceeded. Could not process message.")
+                        else:
+                            logger.error(f"Error processing message: {e}")
+                            raise e
                     
                 # If we broke out of the loop due to reconnect_needed, close the connection
                 # and let the outer loop reconnect with the new DIDs list
@@ -547,6 +559,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
+            raise e
             await asyncio.sleep(RECONNECT_DELAY)
 
 
@@ -567,6 +580,8 @@ async def main():
                         help="Username for ATProto client")
     parser.add_argument("--password", "-p", type=str, default=None,
                         help="Password for ATProto client")
+    parser.add_argument("--thread-depth", "-t", type=int, default=2,
+                        help="Maximum depth of threads to process. Default is 2.")
     
     args = parser.parse_args()
 
@@ -608,7 +623,7 @@ async def main():
     logger.info(f"Jetstream host: {args.jetstream_host}")
 
     try:
-        await connect_to_jetstream(atproto_client, args.dids_file, args.jetstream_host)
+        await connect_to_jetstream(atproto_client, args.dids_file, args.jetstream_host, thread_depth=args.thread_depth)
     except KeyboardInterrupt:
         logger.info("Shutting down")
     except Exception as e:

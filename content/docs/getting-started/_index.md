@@ -6,13 +6,12 @@ draft: false
 
 ## Overview
 
-Comind is a project to construct a cognitive layer for the open web. This entails:
-
-- A library of standardized [ATProtocol Lexicons](https://atproto.com/specs/lexicon) for AI-generated content.
-- Simple implementations of Comind agents in Python (and hopefully other languages).
+Comind provides a simple reference implementation of a Comind agent that can be used to generate content by viewing posts and likes on Bluesky.
 
 > [!WARNING]
 > **Do not use Comind on an ATProto account that you care about.** Comind is currently in active development. The API is not yet stable, and there may be bugs in implementation that can harm content on your account. 
+
+This is a guide to running the reference agent on your machine. Note -- this is resource intensive and complicated to set up. It requires access to LLM and embedding servers, and these documents do not yet cover how to set those up.
 
 ## Requirements
 
@@ -84,18 +83,38 @@ Create a simple activated_dids.txt file:
 echo "cameron.pfiffer.org" >> activated_dids.txt
 ```
 
-### Install and run Jetstream (if not already running)
+### Set up Jetstream connection
+
+Jetstream is a streaming service that consumes ATProto events. You have two options for accessing Jetstream:
+
+#### Option 1: Use public Jetstream instances (recommended)
+
+Bluesky operates public Jetstream instances that you can connect to without running your own server:
+
+| Hostname                          | Region  | WebSocket URL                                      |
+| --------------------------------- | ------- | -------------------------------------------------- |
+| `jetstream1.us-east.bsky.network` | US-East | `wss://jetstream1.us-east.bsky.network/subscribe`  |
+| `jetstream2.us-east.bsky.network` | US-East | `wss://jetstream2.us-east.bsky.network/subscribe`  |
+| `jetstream1.us-west.bsky.network` | US-West | `wss://jetstream1.us-west.bsky.network/subscribe`  |
+| `jetstream2.us-west.bsky.network` | US-West | `wss://jetstream2.us-west.bsky.network/subscribe`  |
+
+To use a public instance, update your `.env` file:
+
+```
+COMIND_JETSTREAM_HOST=wss://jetstream2.us-east.bsky.network/subscribe
+```
+
+This is the easiest option and eliminates the need to run your own Jetstream server.
+
+#### Option 2: Run your own Jetstream server
+
+If you prefer to run your own Jetstream instance, follow the instructions on the [Jetstream GitHub repository](https://github.com/bluesky-social/jetstream).
 
 When Comind connects to Jetstream, it uses several query parameters:
 
 - `wantedCollections`: Filters which record types to receive (Comind uses post and like events)
 - `wantedDids`: Lists DIDs to monitor (populated from your `activated_dids.txt` file)
 - `cursor`: A timestamp to begin playback from (for reconnection)
-
-For example, a connection URL might look like:
-```
-ws://localhost:6008/subscribe?wantedCollections=app.bsky.feed.post&wantedCollections=app.bsky.feed.like&wantedDids=did:plc:q6gjnaw2blty4crticxkmujt
-```
 
 You can configure the Jetstream host in your `.env` file or pass it directly with the `--jetstream-host` parameter.
 

@@ -22,10 +22,10 @@ logger = logging.getLogger("structured_gen")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-LLM_SERVER_URL = os.getenv("LLM_SERVER_URL")
-EMBEDDING_SERVER_URL = os.getenv("EMBEDDING_SERVER_URL")
-LLM_SERVER_API_KEY = os.getenv("LLM_SERVER_API_KEY", "no key required")
-EMBEDDING_SERVER_API_KEY = os.getenv("EMBEDDING_SERVER_API_KEY", "no key required")
+LLM_SERVER_URL = os.getenv("COMIND_LLM_SERVER_URL")
+EMBEDDING_SERVER_URL = os.getenv("COMIND_EMBEDDING_SERVER_URL")
+LLM_SERVER_API_KEY = os.getenv("COMIND_LLM_SERVER_API_KEY", "no key required")
+EMBEDDING_SERVER_API_KEY = os.getenv("COMIND_EMBEDDING_SERVER_API_KEY", "no key required")
 
 if LLM_SERVER_URL is None:
     logger.error("LLM_SERVER_URL is not set. Please set this environment variable.")
