@@ -1,9 +1,10 @@
 # See vllm docs for structured outputs stuff
 # https://docs.vllm.ai/en/latest/features/structured_outputs.html
 
+import json
 from openai import OpenAI
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Union
 import logging
 from rich import print
 
@@ -104,10 +105,18 @@ def generate(
 
 def generate_by_schema(
     messages: List[Dict[str, str]],
-    schema: str,
+    schema: Union[str, dict],
 ) -> BaseModel:
     """Generate a response conforming to a JSON schema."""
     logger.info(f"Generating schema-guided response with model {DEFAULT_MODEL}")
+
+    if isinstance(schema, dict):
+        schema = json.dumps(schema)
+    elif isinstance(schema, str):
+        schema = schema
+    else:
+        raise ValueError("Schema must be a string or a dictionary.")
+
     try:
         response = CLIENT.chat.completions.create(
             model=DEFAULT_MODEL,
