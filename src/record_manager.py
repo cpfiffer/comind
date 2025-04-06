@@ -101,6 +101,10 @@ class RecordManager:
             # Set rkey to lowercase title with hyphens instead of spaces
             create_params['rkey'] = create_params['record']['title'].lower().replace(" ", "-")
 
+        if collection == "me.comind.blip.concept":
+            # Set rkey to lowercase title with hyphens instead of spaces
+            create_params['rkey'] = create_params['record']['text'].lower().replace(" ", "-")
+
         if rkey is not None:
             create_params['rkey'] = rkey
 
