@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import datetime
+from src.lexicon_utils import strip_fields
 import yaml
 # Maximum length for posts
 MAX_POST_LENGTH = 300
@@ -195,7 +196,7 @@ def unpack_thread(thread_response, client=None, expand_quoted_threads=False, max
 
     # Thread
     thread = thread_response["thread"]
-    stripped_thread = strip_fields(thread)
+    stripped_thread = strip_fields(thread, STRIP_FIELDS)
 
     # Retrieve URI and CID and store in references.
     # In format (uri, cid)

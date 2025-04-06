@@ -1,5 +1,28 @@
 <CO|METADATA></CO|METADATA>
-<CO|SCHEMA></CO|SCHEMA>
+<CO|SCHEMA>
+{
+  "type": "object",
+  "required": [
+    "concepts"
+  ],
+  "properties": {
+    "concepts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "concept",
+          "connection_to_content"
+        ],
+        "properties": {
+          "concept": {"ref": "me.comind.blip.concept"},
+          "connection_to_content": {"ref": "me.comind.relationship.link"}
+        }
+      }
+    }
+  }
+}
+</CO|SCHEMA>
 <CO|SYSTEM>
 
 {comind_network}

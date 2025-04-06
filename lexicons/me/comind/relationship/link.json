@@ -30,30 +30,41 @@
                         "ref": "com.atproto.repo.strongRef",
                         "description": "The target record."
                     },
-                    "relationship": {
-                        "type": "string",
-                        "enum": [
-                            "REFERENCES",
-                            "SUPPORTS",
-                            "CONTRADICTS",
-                            "PART_OF",
-                            "PRECEDES",
-                            "CAUSES",
-                            "INSTANCE_OF",
-                            "ANSWERS"
-                        ],
-                        "description": "The type of relationship between source and target."
-                    },
-                    "strength": {
-                        "type": "number",
-                        "minimum": 0,
-                        "maximum": 1,
-                        "description": "Optional strength of the relationship (0-1)."
-                    },
-                    "note": {
-                        "type": "string",
-                        "description": "Optional note explaining the relationship."
+                    "generated": {
+                        "type": "ref",
+                        "ref": "#generated",
+                        "description": "The generated relationship."
                     }
+                }
+            }
+        },
+        "generated": {
+            "type": "object",
+            "description": "The generated relationship.",
+            "properties": {
+                "relationship": {
+                    "type": "string",
+                    "enum": [
+                        "REFERENCES",
+                        "SUPPORTS",
+                        "CONTRADICTS",
+                        "PART_OF",
+                        "PRECEDES",
+                        "CAUSES",
+                        "INSTANCE_OF",
+                        "ANSWERS"
+                    ],
+                    "description": "The type of relationship between source and target."
+                },
+                "strength": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Optional strength of the relationship (0-1)."
+                },
+                "note": {
+                    "type": "string",
+                    "description": "Optional note explaining the relationship."
                 }
             }
         }

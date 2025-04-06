@@ -1,3 +1,4 @@
+from src.comind.comind import available_cominds, Comind
 from pydantic import BaseModel, Field
 from datetime import datetime
 import json
@@ -11,15 +12,17 @@ import src.session_reuse as session_reuse
 from rich import print
 from rich.panel import Panel
 from src.bsky_utils import (
-    lexicon_of,
+    STRIP_FIELDS,
     unpack_thread,
 )
 from src.lexicon_utils import (
     get_link_schema,
     split_link,
     add_property,
+    generated_lexicon_of,
     strip_fields,
     multiple_of_schema,
+    add_link_property,
 )
 import src.structured_gen as structured_gen
 from src.record_manager import RecordManager
@@ -265,7 +268,8 @@ async def process_event(
         post_cid: str,
         root_post_uri: str = None,
         thread_depth: int = 2,
-        user_info_cache: UserInfoCache = None
+        user_info_cache: UserInfoCache = None,
+        comind: Comind = None
     ) -> None:
     """Process an event and generate thoughts, emotions, and concepts for it"""
     try:
@@ -323,7 +327,10 @@ async def process_event(
 
         # Get the target post
         target_post = client.get_posts([post_uri]).posts[0]
-        stripped_target_post = yaml.dump(strip_fields(target_post.model_dump(), STRIP_FIELDS), indent=2)
+        stripped_target_post = yaml.dump(
+            strip_fields(target_post.model_dump(), STRIP_FIELDS), 
+            indent=2
+        )
 
         if event_kind == "app.bsky.feed.post":
             target_post_string = f"## New post\n{actor_info.display_name} ({actor_info.handle}) has made a new post. Here is the post:\n{stripped_target_post}"
@@ -342,68 +349,85 @@ async def process_event(
 
         prompt = "\n\n".join(rows)
 
+        context_dict = {
+            'content': prompt,
+        }
+
         # Print a separator panel
         print(Panel.fit(prompt, title="Prompt"))
 
-        # Generate thoughts, emotions, and concepts
-        for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
-            # Generate the thought using the structured_gen model
-            tail_name = nsid.split(".")[-1] + "s"
-            lx = lexicon_of(nsid)
-            add_property(lx, "connection_to_content", link_schema, required=True)
-            schema = multiple_of_schema(tail_name, lx)
+        # Run the comind
+        result = comind.run(context_dict)
+        print(result)
 
-            response = structured_gen.generate_by_schema(
-                messages=[
-                    {"role": "system", "content": system_prompts[nsid]},
-                    {"role": "user", "content": prompt},
-                ],
-                schema=schema,
-            )
+        # Upload the result
+        comind.upload(result, RecordManager(client), {'uri': post_uri, 'cid': post_cid})
 
-            # Parse the response
-            response_content = json.loads(response.choices[0].message.content)
+        # # Generate thoughts, emotions, and concepts
+        # for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
+        #     # Generate the thought using the structured_gen model
+        #     tail_name = nsid.split(".")[-1] + "s"
+        #     lx = generated_lexicon_of(nsid)
+        #     add_link_property(lx, "connection_to_content", required=True)
+        #     schema = multiple_of_schema(tail_name, lx)
 
-            # Print the generated content
-            print(f"\nGenerated {tail_name}:")
-            print(yaml.dump(response_content))
+        #     response = structured_gen.generate_by_schema(
+        #         messages=[
+        #             {"role": "system", "content": system_prompts[nsid]},
+        #             {"role": "user", "content": prompt},
+        #         ],
+        #         schema=schema,
+        #     )
 
-            # Convert each record to the record format
-            for record in response_content[tail_name]:
-                record["$type"] = nsid
-                record["createdAt"] = datetime.now().isoformat()
+        #     # Parse the response
+        #     response_content = json.loads(response.choices[0].message.content)
 
-                link_record = split_link(record)
-                link_record['target'] = {'uri': post_uri, 'cid': post_cid}
+        #     # Print the generated content
+        #     print(f"\nGenerated {tail_name}:")
+        #     print(yaml.dump(response_content))
 
-                # Upload the generated thought record
-                record_manager = RecordManager(client)
+        #     # Convert each record to the record format
+        #     for record in response_content[tail_name]:
+        #         record["$type"] = nsid
+        #         record["createdAt"] = datetime.now().isoformat()
 
-                # If it's a concept, the rkey must be the text of the concept with hyphens instead of spaces
-                # TODO: #2 RecordManager should handle default rkeys for concepts
-                if nsid == "me.comind.blip.concept":
-                    record["rkey"] = record["text"].replace(" ", "-")
+        #         link_record = split_link(record)
+        #         link_record['target'] = {'uri': post_uri, 'cid': post_cid}
 
-                # Check if the record already exists
-                if 'rkey' in record:
-                    existing_record = record_manager.get_record(nsid, record["rkey"])
-                    if not existing_record:
-                        existing_record = record_manager.create_record(nsid, record, rkey=record["rkey"])
-                else:
-                    # We're not using a custom rkey, so we need to create the record with a random rkey
-                    existing_record = record_manager.create_record(nsid, record)
+        #         # Upload the generated thought record
+        #         record_manager = RecordManager(client)
 
-                # Add the uri and cid to the link record
-                link_record['source'] = {'uri': existing_record['uri'], 'cid': existing_record['cid']}
+        #         # If it's a concept, the rkey must be the text of the concept with hyphens instead of spaces
+        #         # TODO: #2 RecordManager should handle default rkeys for concepts
+        #         if nsid == "me.comind.blip.concept":
+        #             record["rkey"] = record["text"].replace(" ", "-")
 
-                # Save the link record
-                link_result = record_manager.create_record("me.comind.relationship.link", link_record)
+        #         # Check if the record already exists
+        #         if 'rkey' in record:
+        #             existing_record = record_manager.get_record(nsid, record["rkey"])
+        #             if not existing_record:
+        #                 existing_record = record_manager.create_record(nsid, record, rkey=record["rkey"])
+        #         else:
+        #             # We're not using a custom rkey, so we need to create the record with a random rkey
+        #             existing_record = record_manager.create_record(nsid, record)
+
+        #         # Add the uri and cid to the link record
+        #         link_record['source'] = {'uri': existing_record['uri'], 'cid': existing_record['cid']}
+
+        #         # Save the link record
+        #         link_result = record_manager.create_record("me.comind.relationship.link", link_record)
 
     except Exception as e:
         logger.error(f"Error processing post {post_uri}: {e}")
         raise e
 
-async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str, jetstream_host: str = JETSTREAM_HOST, thread_depth: int = 2) -> None:
+async def connect_to_jetstream(
+        atproto_client: Client, 
+        activated_dids_file: str,
+        jetstream_host: str = JETSTREAM_HOST, 
+        thread_depth: int = 2, 
+        comind: Comind = None
+    ) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
 
@@ -500,7 +524,8 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                                     post_cid,
                                     root_post_uri=root_post_uri,
                                     thread_depth=thread_depth,
-                                    user_info_cache=user_info_cache
+                                    user_info_cache=user_info_cache,
+                                    comind=comind
                                 )
                             elif collection == "app.bsky.feed.like":
                                 # Extract post URI and CID
@@ -515,7 +540,8 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
                                     post_uri,
                                     post_cid,
                                     thread_depth=thread_depth,
-                                    user_info_cache=user_info_cache
+                                    user_info_cache=user_info_cache,
+                                    comind=comind
                                 )
                             else:
                                 logger.warning(f"Unknown collection message received: {collection}")
@@ -561,6 +587,7 @@ async def connect_to_jetstream(atproto_client: Client, activated_dids_file: str,
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
+            raise e
             await asyncio.sleep(RECONNECT_DELAY)
 
 
@@ -585,8 +612,21 @@ async def main():
                         help="Maximum depth of threads to process. Default is 2.")
     parser.add_argument("--sphere", type=str, default=None,
                         help="Sphere to attach comind records to. Default is to not use a sphere.")
+    parser.add_argument("--comind", "-c", type=str, default=None,
+                        help="Comind to use for processing. Required.")
     
     args = parser.parse_args()
+
+    if args.comind is None:
+        logger.error("Comind is required. Please provide a comind using the --comind flag. Available cominds:")
+
+        # Load the cominds
+        cominds = available_cominds()
+        for comind in cominds:
+            logger.error(f"  {comind}")
+
+        parser.print_help()
+        return
 
     # Set the log level
     logging.getLogger().setLevel(getattr(logging, args.log_level))
@@ -653,8 +693,17 @@ async def main():
     logger.info(f"Starting Jetstream consumer with activated DIDs file: {args.dids_file}")
     logger.info(f"Jetstream host: {args.jetstream_host}")
 
+    # Create the comind
+    comind = Comind.load(args.comind)
+
     try:
-        await connect_to_jetstream(atproto_client, args.dids_file, args.jetstream_host, thread_depth=args.thread_depth)
+        await connect_to_jetstream(
+            atproto_client,
+            args.dids_file,
+            args.jetstream_host,
+            thread_depth=args.thread_depth,
+            comind=comind
+        )
     except KeyboardInterrupt:
         logger.info("Shutting down")
     except Exception as e:

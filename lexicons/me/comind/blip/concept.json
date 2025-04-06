@@ -27,21 +27,17 @@
             }
         },
         "generated": {
-            "type": "record",
-            "key": "tid",
+            "type": "object",
             "description": "A concept related to the text. Must use only the characters [a-z0-9 ]. Should be a single word or phrase, like 'data', 'privacy', 'AI', 'security', 'social networks', etc.",
-            "record": {
-                "type": "object",
-                "required": [
-                    "text"
-                ],
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "The text of a single concept. Must use only the characters [a-z0-9 ]. Should be a single word or phrase, like 'data', 'privacy', 'AI', 'security', 'social networks', etc. Keep concept text as short as possible."
-                    }
-                }
-            }
+              "required": [
+                  "text"
+              ],
+              "properties": {
+                  "text": {
+                      "type": "string",
+                      "description": "The text of a single concept. Must use only the characters [a-z0-9 ]. Should be a single word or phrase, like 'data', 'privacy', 'AI', 'security', 'social networks', etc. Keep concept text as short as possible."
+                  }
+              }
         }
     }
 }

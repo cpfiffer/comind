@@ -42,6 +42,17 @@ class RecordManager:
         self.client = client
         logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
 
+    def try_get_record(self, collection: str, rkey: str) -> Optional[Dict]:
+        """
+        Get the reference of a record.
+        """
+        try:
+            record = self.get_record(collection, rkey)
+            return record
+        except Exception as e:
+            logger.error(f"Error getting reference of record {collection}/{rkey}: {str(e)}")
+            return None
+
     def get_record(self, collection: str, rkey: str) -> Optional[Dict]:
         """
         Get a record from the user's repository.
@@ -99,13 +110,17 @@ class RecordManager:
             'record': record
         }
 
+        # Add the '$type' field to the record if it's not already present
+        if '$type' not in record:
+            record['$type'] = collection
+
         if collection == "me.comind.sphere.core":
             # Set rkey to lowercase title with hyphens instead of spaces
             create_params['rkey'] = create_params['record']['title'].lower().replace(" ", "-")
 
         if collection == "me.comind.blip.concept":
             # Set rkey to lowercase title with hyphens instead of spaces
-            create_params['rkey'] = create_params['record']['text'].lower().replace(" ", "-")
+            create_params['rkey'] = create_params['record']['generated']['text'].lower().replace(" ", "-")
 
         if rkey is not None:
             create_params['rkey'] = rkey
