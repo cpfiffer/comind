@@ -11,13 +11,15 @@ import src.session_reuse as session_reuse
 from rich import print
 from rich.panel import Panel
 from src.bsky_utils import (
-    add_property,
-    get_link_schema,
     lexicon_of,
-    multiple_of_schema,
-    split_link,
-    strip_fields,
     unpack_thread,
+)
+from src.lexicon_utils import (
+    get_link_schema,
+    split_link,
+    add_property,
+    strip_fields,
+    multiple_of_schema,
 )
 import src.structured_gen as structured_gen
 from src.record_manager import RecordManager
@@ -321,7 +323,7 @@ async def process_event(
 
         # Get the target post
         target_post = client.get_posts([post_uri]).posts[0]
-        stripped_target_post = yaml.dump(strip_fields(target_post.model_dump()), indent=2)
+        stripped_target_post = yaml.dump(strip_fields(target_post.model_dump(), STRIP_FIELDS), indent=2)
 
         if event_kind == "app.bsky.feed.post":
             target_post_string = f"## New post\n{actor_info.display_name} ({actor_info.handle}) has made a new post. Here is the post:\n{stripped_target_post}"
@@ -581,7 +583,9 @@ async def main():
                         help="Password for ATProto client")
     parser.add_argument("--thread-depth", "-t", type=int, default=2,
                         help="Maximum depth of threads to process. Default is 2.")
-
+    parser.add_argument("--sphere", type=str, default=None,
+                        help="Sphere to attach comind records to. Default is to not use a sphere.")
+    
     args = parser.parse_args()
 
     # Set the log level
@@ -600,7 +604,7 @@ async def main():
 
     # If no password, exit
     if args.password is None:
-        logger.error("No password provided. Please provide a password using the --password flag, or set the COMIND_BSKY_PASSWORD environment variable.")
+        logger.error("No password provi/ded. Please provide a password using the --password flag, or set the COMIND_BSKY_PASSWORD environment variable.")
         parser.print_help()
         return
 
@@ -612,6 +616,34 @@ async def main():
 
     # Log in to ATProto
     atproto_client = session_reuse.init_client(args.username, args.password)
+    record_manager = RecordManager(atproto_client)
+
+    # Get lists of spheres
+    spheres = record_manager.list_records("me.comind.sphere.core")
+    sphere_to_use = None
+
+
+    logger.debug(f"Found {len(spheres)} spheres")
+    for sphere in spheres:
+        value = sphere.value
+        text = value["text"]
+        title = value["title"]
+        description = value["description"]
+
+        logger.debug(f"Found sphere: {title} - {text}")
+
+        if args.sphere == title:
+            sphere_to_use = sphere
+            message = f"Using sphere: {title} - {text}"
+            if description:
+                message += f"\n\n{description}"
+            logger.info(message)
+            break
+
+    if sphere_to_use is None and args.sphere is not None:
+        logger.error(f"Sphere {args.sphere} not found. Please create it and assign this comind to it.")
+        parser.print_help()
+        return
 
     # If SSL option is specified and --jetstream-host wasn't provided, modify the URL
     if args.use_ssl and args.jetstream_host == JETSTREAM_HOST and args.jetstream_host.startswith("ws:"):
