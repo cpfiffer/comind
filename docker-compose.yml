@@ -1,0 +1,42 @@
+# --model microsoft/Phi-3.5-mini-instruct
+# --mode microsoft/Phi-4
+# --model google/gemma-3-12b-it # needs a new version of transformers
+services:
+  srv-llm:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8002:8000"
+    command: >
+      --model microsoft/Phi-4
+      --max_model_len 15000
+      --guided-decoding-backend outlines
+
+  embeddings:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8000"
+    command: >
+      --model mixedbread-ai/mxbai-embed-xsmall-v1
+      --guided-decoding-backend outlines
+      --trust-remote-code

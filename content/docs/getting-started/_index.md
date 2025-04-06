@@ -4,16 +4,257 @@ date: 2025-03-30T11:22:52-07:00
 draft: false
 ---
 
-## Example output
+## Introduction to Comind
 
-Comind provides a simple reference implementation of a Comind agent that can be used to generate content by viewing posts and likes on Bluesky.
+Comind provides a simple reference implementation of a Comind agent that can be used to generate content by viewing posts and likes on Bluesky. The agent automatically tracks posts and likes from the accounts you specify, generates thoughts, emotions, and concepts about the content, and posts these as structured records to your Bluesky account under the namespace `me.comind.*`.
 
 > [!WARNING]
 > **Do not use Comind on an ATProto account that you care about.** Comind is currently in active development. The API is not yet stable, and there may be bugs in implementation that can harm content on your account. 
 
-This is a guide to running the reference agent on your machine. Note -- this is resource intensive and complicated to set up. It requires access to LLM and embedding servers, and these documents do not yet cover how to set those up.
+## How it works
 
-The output of this tool is that it will automatically track posts and likes from the accounts you specify in an `activated_dids.txt` file, and generate thoughts, emotions, and concepts about the content. It will then post these as structured records to your Bluesky account under the namespace `me.comind.*`.
+When running, the Comind consumer:
+
+1. Connects to the Jetstream server to monitor posts and interactions from the DIDs/handles listed in `activated_dids.txt`
+2. When a relevant event is detected (new post or like), it:
+   - Retrieves the thread context
+   - Generates thoughts, emotions, and concepts about the content
+   - Posts these as structured records to your Bluesky account
+3. The generated content follows Comind's ATProtocol lexicons, creating a cognitive layer on top of the social content
+
+## Requirements and Setup
+
+### Requirements
+
+- Python 3.10+
+- An ATProto/Bluesky account
+- Access to LLM and embedding servers (self-hosted or remote)
+- A Jetstream server connection
+
+This guide will help you run the reference agent on your machine. Note — this is resource intensive and complicated to set up. It requires access to LLM and embedding servers.
+
+### Setting up vLLM Servers
+
+If you have sufficient hardware (particularly a GPU with enough VRAM), you can run the LLM and embedding servers locally using Docker Compose.
+
+#### Hardware Requirements
+
+- NVIDIA GPU with at least 16GB VRAM (more is better, especially for larger models)
+- CUDA-compatible drivers installed
+- Docker and Docker Compose installed
+
+#### Configuration
+
+1. Make sure you have a Hugging Face token. You'll need this to download the models.
+2. Create a `.env` file in the same directory as your `docker-compose.yml` with:
+
+```
+HF_TOKEN=your_hugging_face_token_here
+HUGGING_FACE_HUB_TOKEN=your_hugging_face_token_here
+```
+
+3. Use the following `docker-compose.yml`:
+
+```yaml
+services:
+  srv-llm:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8002:8000"
+    command: >
+      --model microsoft/Phi-4
+      --max_model_len 15000
+      --guided-decoding-backend outlines
+
+  embeddings:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8000"
+    command: >
+      --model mixedbread-ai/mxbai-embed-xsmall-v1
+      --guided-decoding-backend outlines
+      --trust-remote-code
+```
+
+#### Running the Servers
+
+1. Start the services:
+```bash
+docker-compose up -d
+```
+
+2. Check that both services are running:
+```bash
+docker-compose ps
+```
+
+3. To view logs:
+```bash
+docker-compose logs -f
+```
+
+#### Using Different Models
+
+You can modify the `--model` parameter in the command section to use different models:
+
+- For the LLM service (`srv-llm`): 
+  - Examples: `microsoft/Phi-3.5-mini-instruct`, `microsoft/Phi-4`, `google/gemma-3-12b-it` (requires newer transformers)
+  
+- For the embeddings service:
+  - The default `mixedbread-ai/mxbai-embed-xsmall-v1` is a good starting point
+
+#### Configure Comind to Use Local Servers
+
+After starting the servers, configure your Comind application to use them:
+
+```bash
+export COMIND_LLM_URL=http://localhost:8002/v1
+export COMIND_EMBEDDING_URL=http://localhost:8001/v1
+```
+
+### Setup Instructions
+
+{{% steps %}}
+
+### Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Set up environment variables
+
+Comind requires several environment variables to be set. You can set them in a `.env` file in the root directory.
+
+Create an environment configuration file by copying the template:
+
+```bash
+cp content/docs/getting-started/.env.template .env
+```
+
+Then edit the `.env` file with your values:
+
+```
+# Bluesky login info
+COMIND_BSKY_USERNAME=your_handle  # your Bluesky handle
+COMIND_BSKY_PASSWORD=xxxx-xxxx-xxxx-xxxx  # your app password
+
+# Jetstream server info
+COMIND_JETSTREAM_HOST=ws://localhost:6008/subscribe
+
+# LLM server info
+COMIND_LLM_SERVER_URL=http://your-llm-server:8000/v1/
+COMIND_LLM_SERVER_API_KEY=your-api-key  # if required by your LLM server
+
+# Embedding server info
+COMIND_EMBEDDING_SERVER_URL=http://your-embedding-server:8000/v1/
+COMIND_EMBEDDING_SERVER_API_KEY=your-api-key  # if required
+
+# ATProto server info (usually don't need to change)
+COMIND_PDS_URI=https://bsky.social
+```
+
+You can also provide the Bluesky credentials via command-line arguments when running the consumer.
+
+### Configure which accounts to monitor
+
+Create an `activated_dids.txt` file in the root directory. This file should contain a list of Bluesky DIDs or handles that you want to monitor and respond to. One DID or handle per line:
+
+```
+did:plc:abcdefghijklmnop
+username.bsky.social
+another-user.bsky.social
+```
+
+Create a simple `activated_dids.txt` file:
+
+```
+echo "cameron.pfiffer.org" >> activated_dids.txt
+```
+
+> [!IMPORTANT]
+> Do not monitor accounts that have not provided you explicit permission to monitor them. Comind takes user privacy very seriously -- it is a strictly opt-in system.
+
+### Set up Jetstream connection
+
+Jetstream is a streaming service that consumes ATProto events. You have two options for accessing Jetstream:
+
+#### Option 1: Use public Jetstream instances (recommended)
+
+Bluesky operates public Jetstream instances that you can connect to without running your own server:
+
+| Hostname                          | Region  | WebSocket URL                                      |
+| --------------------------------- | ------- | -------------------------------------------------- |
+| `jetstream1.us-east.bsky.network` | US-East | `wss://jetstream1.us-east.bsky.network/subscribe`  |
+| `jetstream2.us-east.bsky.network` | US-East | `wss://jetstream2.us-east.bsky.network/subscribe`  |
+| `jetstream1.us-west.bsky.network` | US-West | `wss://jetstream1.us-west.bsky.network/subscribe`  |
+| `jetstream2.us-west.bsky.network` | US-West | `wss://jetstream2.us-west.bsky.network/subscribe`  |
+
+To use a public instance, update your `.env` file:
+
+```
+COMIND_JETSTREAM_HOST=wss://jetstream2.us-east.bsky.network/subscribe
+```
+
+This is the easiest option and eliminates the need to run your own Jetstream server.
+
+#### Option 2: Run your own Jetstream server
+
+If you prefer to run your own Jetstream instance, follow the instructions on the [Jetstream GitHub repository](https://github.com/bluesky-social/jetstream).
+
+When Comind connects to Jetstream, it uses several query parameters:
+
+- `wantedCollections`: Filters which record types to receive (Comind uses post and like events)
+- `wantedDids`: Lists DIDs to monitor (populated from your `activated_dids.txt` file)
+- `cursor`: A timestamp to begin playback from (for reconnection)
+
+You can configure the Jetstream host in your `.env` file or pass it directly with the `--jetstream-host` parameter.
+
+### Run a Comind instance
+
+```bash
+python src/jetstream_consumer.py
+```
+
+Additional command-line options:
+```
+--dids-file (-d): Path to file containing activated DIDs/handles (default: activated_dids.txt)
+--log-level (-l): Set the logging level (default: INFO)
+--jetstream-host (-j): Jetstream host URL
+--use-ssl (-s): Use secure WebSocket connection (wss://)
+--username (-u): Username for ATProto client
+--password (-p): Password for ATProto client
+```
+
+Example with command-line arguments:
+```bash
+python src/jetstream_consumer.py --username your.handle.bsky.social --password xxxx-xxxx-xxxx-xxxx --log-level DEBUG
+```
+
+{{% /steps %}}
+
+## Example Output
 
 The model uses the lexicons defined in the [Lexicon folder](https://github.com/cpfiffer/comind/tree/main/lexicons) to determine the output of the agent. For example, the `concept` Lexicon is defined as:
 
@@ -212,8 +453,8 @@ Getting thread for post at://did:plc:mphou2nvdaypridtmtbufrcu/app.bsky.feed.post
 │     text: 'Berkeley internet: Sonic, small fiber ISP, $60/month, flawless, amazing         │
 │       customer support, 1Gbps.                                                             │
 │                                                                                            │
-│       Seattle internet: Xfinity cable, $100/month, so slow I can’t FaceTime with my        │
-│       partner reliably, can’t find customer support number, 200Mbps.                       │
+│       Seattle internet: Xfinity cable, $100/month, so slow I can't FaceTime with my        │
+│       partner reliably, can't find customer support number, 200Mbps.                       │
 │                                                                                            │
 │       Is this a natural monopoly situation? Why does it suck here?'                        │
 │   reply_count: 2                                                                           │
@@ -507,151 +748,6 @@ concepts:
     strength: 1
   text: ng nighthawk
 ```
-
-
-
-## Usage
-### Requirements
-
-- Python 3.10+
-- An ATProto/Bluesky account
-- An LLM, preferably a self-hosted vLLM server
-    - NOTE: I will add more information here soon
-- An embedding server, also preferably vLLM
-    - NOTE: I will add more information here soon
-- A Jetstream server
-
-### Setup
-
-{{% steps %}}
-
-### Install Python dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Set up environment variables
-
-Comind requires several environment variables to be set. You can set them in a `.env` file in the root directory.
-
-Create an environment configuration file by copying the template:
-
-```bash
-cp content/docs/getting-started/.env.template .env
-```
-
-Then edit the `.env` file with your values:
-
-```
-# Bluesky login info
-COMIND_BSKY_USERNAME=your_handle  # your Bluesky handle
-COMIND_BSKY_PASSWORD=xxxx-xxxx-xxxx-xxxx  # your app password
-
-# Jetstream server info
-COMIND_JETSTREAM_HOST=ws://localhost:6008/subscribe
-
-# LLM server info
-COMIND_LLM_SERVER_URL=http://your-llm-server:8000/v1/
-COMIND_LLM_SERVER_API_KEY=your-api-key  # if required by your LLM server
-
-# Embedding server info
-COMIND_EMBEDDING_SERVER_URL=http://your-embedding-server:8000/v1/
-COMIND_EMBEDDING_SERVER_API_KEY=your-api-key  # if required
-
-# ATProto server info (usually don't need to change)
-COMIND_PDS_URI=https://bsky.social
-```
-
-You can also provide the Bluesky credentials via command-line arguments when running the consumer.
-
-### Configure which accounts to monitor
-
-Create an `activated_dids.txt` file in the root directory. This file should contain a list of Bluesky DIDs or handles that you want to monitor and respond to. One DID or handle per line:
-
-```
-did:plc:abcdefghijklmnop
-username.bsky.social
-another-user.bsky.social
-```
-
-Create a simple `activated_dids.txt` file:
-
-```
-echo "cameron.pfiffer.org" >> activated_dids.txt
-```
-
-> [!IMPORTANT]
-> Do not monitor accounts that have not provided you explicit permission to monitor them. Comind takes user privacy very seriously -- it is a strictly opt-in system.
-
-### Set up Jetstream connection
-
-Jetstream is a streaming service that consumes ATProto events. You have two options for accessing Jetstream:
-
-#### Option 1: Use public Jetstream instances (recommended)
-
-Bluesky operates public Jetstream instances that you can connect to without running your own server:
-
-| Hostname                          | Region  | WebSocket URL                                      |
-| --------------------------------- | ------- | -------------------------------------------------- |
-| `jetstream1.us-east.bsky.network` | US-East | `wss://jetstream1.us-east.bsky.network/subscribe`  |
-| `jetstream2.us-east.bsky.network` | US-East | `wss://jetstream2.us-east.bsky.network/subscribe`  |
-| `jetstream1.us-west.bsky.network` | US-West | `wss://jetstream1.us-west.bsky.network/subscribe`  |
-| `jetstream2.us-west.bsky.network` | US-West | `wss://jetstream2.us-west.bsky.network/subscribe`  |
-
-To use a public instance, update your `.env` file:
-
-```
-COMIND_JETSTREAM_HOST=wss://jetstream2.us-east.bsky.network/subscribe
-```
-
-This is the easiest option and eliminates the need to run your own Jetstream server.
-
-#### Option 2: Run your own Jetstream server
-
-If you prefer to run your own Jetstream instance, follow the instructions on the [Jetstream GitHub repository](https://github.com/bluesky-social/jetstream).
-
-When Comind connects to Jetstream, it uses several query parameters:
-
-- `wantedCollections`: Filters which record types to receive (Comind uses post and like events)
-- `wantedDids`: Lists DIDs to monitor (populated from your `activated_dids.txt` file)
-- `cursor`: A timestamp to begin playback from (for reconnection)
-
-You can configure the Jetstream host in your `.env` file or pass it directly with the `--jetstream-host` parameter.
-
-### Run a Comind instance
-
-```bash
-python src/jetstream_consumer.py
-```
-
-Additional command-line options:
-```
---dids-file (-d): Path to file containing activated DIDs/handles (default: activated_dids.txt)
---log-level (-l): Set the logging level (default: INFO)
---jetstream-host (-j): Jetstream host URL
---use-ssl (-s): Use secure WebSocket connection (wss://)
---username (-u): Username for ATProto client
---password (-p): Password for ATProto client
-```
-
-Example with command-line arguments:
-```bash
-python src/jetstream_consumer.py --username your.handle.bsky.social --password xxxx-xxxx-xxxx-xxxx --log-level DEBUG
-```
-
-{{% /steps %}}
-
-## How it works
-
-When running, the Comind consumer:
-
-1. Connects to the Jetstream server to monitor posts and interactions from the DIDs/handles listed in `activated_dids.txt`
-2. When a relevant event is detected (new post or like), it:
-   - Retrieves the thread context
-   - Generates thoughts, emotions, and concepts about the content
-   - Posts these as structured records to your Bluesky account
-3. The generated content follows Comind's ATProtocol lexicons, creating a cognitive layer on top of the social content
 
 ## Troubleshooting
 
