@@ -87,7 +87,9 @@ class RecordManager:
 
         Raises:
             Exception: If the record creation fails
+
         """
+        # TODO: #12 Validate records before uploading it to the repo
         logger.debug(f"Creating record in collection: {collection}" + (f" with rkey: {rkey}" if rkey else ""))
         logger.debug(f"Record content: {record}")
 
