@@ -45,8 +45,6 @@ def generated_lexicon_of(nsid, fetch_refs=False):
     # Get the generated part of the lexicon
     generated_part = lexicon["defs"]["generated"]
 
-    print(generated_part)
-
     # Check to see if there is a regex contained in the description
     if "description" in lexicon:
         pattern_regex = r"\(PATTERN OF '(.*?)': (.*?)\)"
@@ -118,8 +116,6 @@ def split_link(record):
 def resolve_refs_recursively(lexicon, processed_refs=None):
     if isinstance(lexicon, str):
         lexicon = json.loads(lexicon)
-
-    print(lexicon)
 
     if processed_refs is None:
         processed_refs = set()

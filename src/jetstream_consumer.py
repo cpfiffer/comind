@@ -354,7 +354,7 @@ async def process_event(
         }
 
         # Print a separator panel
-        print(Panel.fit(prompt, title="Prompt"))
+        # print(Panel.fit(prompt, title="Prompt"))
 
         # Run the comind
         result = comind.run(context_dict)

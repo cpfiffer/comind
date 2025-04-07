@@ -132,7 +132,6 @@ class Comind:
             else:
                 raise ValueError("Schema is required.")
 
-        print(json.dumps(schema, indent=2))
         return sg.generate_by_schema(messages, schema)
 
 def available_cominds():
