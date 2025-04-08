@@ -57,8 +57,7 @@ def init_client(username: str, password: str) -> Client:
 
     return client
 
-
-if __name__ == '__main__':
+def default_login() -> Client:
     username = os.getenv("COMIND_BSKY_USERNAME")
     password = os.getenv("COMIND_BSKY_PASSWORD")
 
@@ -70,6 +69,9 @@ if __name__ == '__main__':
         logger.error("No password provided. Please provide a password using the COMIND_BSKY_PASSWORD environment variable.")
         exit()
 
-    client = init_client(username, password)
+    return init_client(username, password)
+
+if __name__ == '__main__':
+    client = default_login()
     # do something with the client
     logger.info('Client is ready to use!')

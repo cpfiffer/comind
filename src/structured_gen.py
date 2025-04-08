@@ -115,8 +115,8 @@ def generate_by_schema(
     elif isinstance(schema, str):
         schema = schema
     else:
-        raise ValueError("Schema must be a string or a dictionary.")
-
+        raise ValueError(f"Schema must be a string or a dictionary. Received: {type(schema)}")
+    
     try:
         response = CLIENT.chat.completions.create(
             model=DEFAULT_MODEL,
@@ -126,7 +126,7 @@ def generate_by_schema(
                 "max_tokens": MAX_OUTPUT_TOKENS,
             }
         )
-        logger.info("Successfully generated schema-guided response")
+        logger.debug("Successfully generated schema-guided response")
         return response
     except Exception as e:
         logger.error(f"Error generating schema-guided response: {e}")

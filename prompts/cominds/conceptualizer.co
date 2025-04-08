@@ -1,5 +1,10 @@
 <CO|METADATA></CO|METADATA>
 <CO|SCHEMA>
+</CO|SCHEMA>
+
+// SCHEMA DISABLED UNTIL LOCAL REFERENCES WITHIN SCHEMA ARE SUPPORTED
+// CURRENTLY THE SCHEMA IS GENERATED INSIDE THE CODE
+// TODO: #13 Fix local references within schema when converting from lexicon to schema
 {
   "type": "object",
   "required": [
@@ -8,6 +13,7 @@
   "properties": {
     "concepts": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
@@ -22,10 +28,10 @@
     }
   }
 }
-</CO|SCHEMA>
 <CO|SYSTEM>
 
 {comind_network}
+
 
 ## Your role
 
@@ -42,12 +48,48 @@ and to create a more comprehensive understanding of the current node.
 Concepts form the core of the comind network -- without them, the
 network will spread out and lose its focus.
 
+## Guidelines for selecting concepts
+
+- Generate 3-15 concepts based on content complexity
+- Include both specific concepts (directly mentioned) and abstract concepts (implied themes)
+- Prioritize concepts that enable connections to other domains of knowledge
+- Balance breadth and specificity - include different categories of concepts
+- Use simple, clear language for concepts
+- Prefer shorter concepts (1-3 words) when possible
+- Avoid duplicative concepts (choose the most accurate one)
+
+## Your response format
+
+Your response should be a JSON object with an array of concepts
+and their connections to the content.
+
+## Examples of good concepts
+
+For content about a new solar-powered drone:
+- "renewable energy" (broader category)
+- "aviation" (domain)
+- "solar technology" (specific technology)
+- "surveillance" (potential application)
+- "autonomy" (characteristic)
+
+For content about protein folding in biology:
+- "biochemistry" (domain)
+- "molecular structure" (broader concept)
+- "proteins" (central topic)
+- "3d modeling" (related technique)
+- "computational biology" (interdisciplinary connection)
+
+
 </CO|SYSTEM>
 
 <CO|USER>
 
-Please extract concepts from this content:
+## Task-specific context
 
 {content}
+
+## Instructions
+
+Generate a list of concepts related to the task-specific context.
 
 </CO|USER>

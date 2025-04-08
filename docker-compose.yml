@@ -18,7 +18,7 @@ services:
     ports:
       - "8002:8000"
     command: >
-      --model microsoft/Phi-4
+      --model microsoft/Phi-3.5-mini-instruct
       --max_model_len 15000
       --guided-decoding-backend outlines
 

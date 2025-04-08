@@ -32,15 +32,36 @@ class RecordManager:
     """
     ALLOWED_NAMESPACE = "me.comind."
 
-    def __init__(self, client: AtProtoClient):
+    def __init__(self, client: AtProtoClient, sphere: Optional[str] = None):
         """
         Initialize a RecordManager with an authenticated ATProto client.
 
         Args:
             client: An authenticated ATProtoClient instance
+            sphere: The sphere to use for the RecordManager. Optional.
         """
         self.client = client
+        self.sphere_uri = sphere
+        
         logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
+
+    def sphere_record(self, target: str, sphere_uri: str = None):
+        if sphere_uri is None:
+            sphere_uri = self.sphere_uri
+
+        if sphere_uri is None:
+            return None
+        else:
+            return {
+                'collection': 'me.comind.relationship.sphere',
+                'repo': self.client.me.did,
+                'record': {
+                    'createdAt': datetime.now().isoformat(),
+                    'target': target,
+                    'sphere_uri': sphere_uri
+                }
+            }
+
 
     def try_get_record(self, collection: str, rkey: str) -> Optional[Dict]:
         """
@@ -127,6 +148,13 @@ class RecordManager:
 
         try:
             response = self.client.com.atproto.repo.create_record(create_params)
+        
+            if self.sphere_uri is not None:
+                logger.info(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
+                self.client.com.atproto.repo.create_record(
+                    self.sphere_record(response.uri, self.sphere_uri)
+                )
+
             logger.debug(f"Successfully created {collection} record. URI: {response.uri}, CID: {response.cid}")
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)

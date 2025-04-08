@@ -11,23 +11,23 @@
                 "type": "object",
                 "required": [
                     "createdAt",
-                    "source",
-                    "target"
+                    "target",
+                    "sphere_uri"
                 ],
                 "properties": {
                     "createdAt": {
                         "type": "string",
                         "format": "datetime"
                     },
-                    "source": {
-                        "type": "ref",
-                        "ref": "com.atproto.repo.strongRef",
-                        "description": "The blip record."
-                    },
                     "target": {
                         "type": "ref",
                         "ref": "com.atproto.repo.strongRef",
-                        "description": "The sphere record."
+                        "description": "The record to associate with the sphere."
+                    },
+                    "sphere_uri": {
+                        "type": "string",
+                        "format": "at-uri",
+                        "description": "The sphere's URI."
                     }
                 }
             }

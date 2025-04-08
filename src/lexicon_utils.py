@@ -113,28 +113,68 @@ def split_link(record):
 
     return connection_to_content_record
 
-def resolve_refs_recursively(lexicon, processed_refs=None):
+def resolve_refs_recursively(lexicon, processed_refs=None, defs=None):
     if isinstance(lexicon, str):
         lexicon = json.loads(lexicon)
 
-    if processed_refs is None:
+    if processed_refs is None:  
         processed_refs = set()
-        
-    for def_name, def_value in lexicon.items():
-        print(def_name, def_value)
 
-        # Check if we have "ref". If so, we need to resolve the referenced lexicon.
-        if "ref" in def_value:
-            ref = def_value["ref"]
-            if ref not in processed_refs:
-                processed_refs.add(ref)
-                referenced_lexicon = lexicon_of(ref)
-                resolve_refs_recursively(referenced_lexicon, processed_refs)
-                lexicon[def_name] = referenced_lexicon
-        # If we don't have "ref", we need to recursively resolve the referenced lexicon.
-        else:
-            if isinstance(def_value, dict):
+    # defs is used to store schema-local definitions, defined in fields like
+    # #/defs/main or #generated, etc.
+    if defs is None:
+        defs = {}
+    
+    # Handle the case where lexicon is a list
+    if isinstance(lexicon, list):
+        for i, item in enumerate(lexicon):
+            if isinstance(item, (dict, list)):
+                lexicon[i] = resolve_refs_recursively(item, processed_refs, defs)
+        return lexicon
+        
+    # Handle the case where lexicon is a dictionary
+    for def_name, def_value in lexicon.items():
+        # Skip debug printing
+        # print(def_name, def_value)
+
+        # Check if def_value is a dictionary before trying to check for "ref"
+        if isinstance(def_value, dict):
+            # Check if we have "ref". If so, we need to resolve the referenced lexicon.
+            if "ref" in def_value:
+                ref = def_value["ref"]
+
+                if ref.startswith("#"):
+                    # Leave as is
+                    pass
+                else:
+                    # Resolve the referenced lexicon
+                    referenced_lexicon = lexicon_of(ref)
+                    lexicon[def_name] = resolve_refs_recursively(referenced_lexicon, processed_refs, defs)
+
+                # if ref not in processed_refs:
+                #     processed_refs.add(ref)
+                #     referenced_lexicon = lexicon_of(ref)
+                #     resolve_refs_recursively(referenced_lexicon, processed_refs, defs)
+                #     lexicon[def_name] = referenced_lexicon
+            # If we don't have "ref", we need to recursively resolve the referenced lexicon.
+            else:
                 for key, value in def_value.items():
-                    resolve_refs_recursively(value, processed_refs)
+                    if isinstance(value, (dict, list)):  # Only process dictionaries and lists
+                        def_value[key] = resolve_refs_recursively(value, processed_refs, defs)
+
+                    # Check if the reference value is a schema-local definition (starts with #)
+                    # if so, we can add the definition to the defs dictionary and leave the reference
+                    # as is.
+                    assert isinstance(key, str) # should always be a string, no?
+                    if key.startswith("#"):
+                        defs[key] = def_value
+                        lexicon[def_name] = def_value
+                        continue
+
+        elif isinstance(def_value, list):
+            # Handle list values by recursively processing each item
+            for i, item in enumerate(def_value):
+                if isinstance(item, (dict, list)):  # Only process dictionaries and lists
+                    def_value[i] = resolve_refs_recursively(item, processed_refs, defs)
 
     return lexicon

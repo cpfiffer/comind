@@ -291,7 +291,7 @@ async def process_event(
         # Get the thread containing the post. If a root post URI is provided, use that
         # to get the thread, otherwise use the post URI.
         thread_uri = root_post_uri if root_post_uri else post_uri
-        print(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
+        logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
 
         # Use depth=0 to fetch the complete thread with all replies
         # This ensures we get all branches of the conversation
@@ -340,11 +340,11 @@ async def process_event(
             raise Exception(f"Unknown event kind: {event_kind}")
 
         rows = [
-            "# Overview",
-            user_info_preamble,
+            # "# Overview",
+            # user_info_preamble,
             target_post_string,
-            context_preamble,
-            instructions_preamble,
+            # context_preamble,
+            # instructions_preamble,
         ]
 
         prompt = "\n\n".join(rows)
@@ -354,68 +354,17 @@ async def process_event(
         }
 
         # Print a separator panel
-        # print(Panel.fit(prompt, title="Prompt"))
+        print(Panel.fit(prompt, title="Prompt"))
 
         # Run the comind
         result = comind.run(context_dict)
-        print(result)
 
         # Upload the result
-        comind.upload(result, RecordManager(client), {'uri': post_uri, 'cid': post_cid})
-
-        # # Generate thoughts, emotions, and concepts
-        # for nsid in ["me.comind.blip.thought", "me.comind.blip.emotion", "me.comind.blip.concept"]:
-        #     # Generate the thought using the structured_gen model
-        #     tail_name = nsid.split(".")[-1] + "s"
-        #     lx = generated_lexicon_of(nsid)
-        #     add_link_property(lx, "connection_to_content", required=True)
-        #     schema = multiple_of_schema(tail_name, lx)
-
-        #     response = structured_gen.generate_by_schema(
-        #         messages=[
-        #             {"role": "system", "content": system_prompts[nsid]},
-        #             {"role": "user", "content": prompt},
-        #         ],
-        #         schema=schema,
-        #     )
-
-        #     # Parse the response
-        #     response_content = json.loads(response.choices[0].message.content)
-
-        #     # Print the generated content
-        #     print(f"\nGenerated {tail_name}:")
-        #     print(yaml.dump(response_content))
-
-        #     # Convert each record to the record format
-        #     for record in response_content[tail_name]:
-        #         record["$type"] = nsid
-        #         record["createdAt"] = datetime.now().isoformat()
-
-        #         link_record = split_link(record)
-        #         link_record['target'] = {'uri': post_uri, 'cid': post_cid}
-
-        #         # Upload the generated thought record
-        #         record_manager = RecordManager(client)
-
-        #         # If it's a concept, the rkey must be the text of the concept with hyphens instead of spaces
-        #         # TODO: #2 RecordManager should handle default rkeys for concepts
-        #         if nsid == "me.comind.blip.concept":
-        #             record["rkey"] = record["text"].replace(" ", "-")
-
-        #         # Check if the record already exists
-        #         if 'rkey' in record:
-        #             existing_record = record_manager.get_record(nsid, record["rkey"])
-        #             if not existing_record:
-        #                 existing_record = record_manager.create_record(nsid, record, rkey=record["rkey"])
-        #         else:
-        #             # We're not using a custom rkey, so we need to create the record with a random rkey
-        #             existing_record = record_manager.create_record(nsid, record)
-
-        #         # Add the uri and cid to the link record
-        #         link_record['source'] = {'uri': existing_record['uri'], 'cid': existing_record['cid']}
-
-        #         # Save the link record
-        #         link_result = record_manager.create_record("me.comind.relationship.link", link_record)
+        comind.upload(
+            result, 
+            RecordManager(client),
+            target=post_uri
+        )
 
     except Exception as e:
         logger.error(f"Error processing post {post_uri}: {e}")
