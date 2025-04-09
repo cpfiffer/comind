@@ -2,7 +2,7 @@
 
 Open-source components for Comind, the cognitive layer for the web.
 
-See the [getting started guide](content/docs/getting-started/_index.md) for more information.
+See the [getting started guide](content/docs/getting-started/_index.md) for more information, and check out [the blog](https://comind.stream/blog/) for devlogs.
 
 ## What is Comind?
 
