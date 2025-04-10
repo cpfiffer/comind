@@ -13,7 +13,9 @@
                     "createdAt",
                     "source",
                     "target",
-                    "relationship"
+                    "relationship",
+                    "note",
+                    "strength"
                 ],
                 "properties": {
                     "createdAt": {

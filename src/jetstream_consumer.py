@@ -31,12 +31,10 @@ from atproto_client import Client
 import yaml
 import os
 import ssl
+from src.comind.logging_config import configure_root_logger_without_timestamp
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging without timestamps
+configure_root_logger_without_timestamp()
 logger = logging.getLogger("jetstream_consumer")
 
 # Silence httpx logs (only show warnings and errors)
@@ -411,12 +409,12 @@ async def connect_to_jetstream(
         # Construct full URI with parameters
         ws_uri = f"{ws_uri}?{'&'.join(query_params)}"
 
-        logger.info(f"Connecting to Jetstream with {len(activated_dids)} activated DIDs")
+        logger.info(f"Connecting to jetstream with {len(activated_dids)} activated DIDs")
         logger.debug(f"WebSocket URI: {ws_uri}")
 
         try:
             async with websockets.connect(ws_uri) as websocket:
-                logger.info("Connected to Jetstream")
+                logger.info("Connected to jetstream")
                 reconnect_needed = False
 
                 while not reconnect_needed:

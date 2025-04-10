@@ -63,7 +63,7 @@ def generated_lexicon_of(nsid, fetch_refs=False):
     return generated_part
 
 
-def multiple_of_schema(parent_key, schema):
+def multiple_of_schema(parent_key, schema, min_items=None, max_items=None):
     # Converts a single concept schema into a list of conceptualizer schemas
     # by adding the "focus" field to the schema
     wrapper = {
@@ -72,7 +72,9 @@ def multiple_of_schema(parent_key, schema):
         "properties": {
             parent_key: {
                 "type": "array",
-                "items": schema
+                "items": schema,
+                "minItems": min_items if min_items is not None else 0,
+                "maxItems": max_items if max_items is not None else None
             }
         }
     }

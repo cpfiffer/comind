@@ -12,9 +12,10 @@ from src.lexicon_utils import generated_lexicon_of, multiple_of_schema, add_link
 from src.record_manager import RecordManager
 from typing import Optional
 from rich import print
+from src.comind.logging_config import configure_logger_without_timestamp, configure_root_logger_without_timestamp
 
-# Configure logging
-logger = logging.getLogger("comind")
+# Configure root logger without timestamps - this affects all logging in the application
+configure_root_logger_without_timestamp()
 
 PROMPT_DIR = "prompts/cominds"
 COMMON_PROMPT_DIR = "prompts/common"
@@ -23,6 +24,7 @@ class Comind:
     name: str
     prompt_path: str
     common_prompt_dir: str
+    logger: logging.Logger
 
     def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None):
         self.name = name
@@ -36,6 +38,10 @@ class Comind:
             self.common_prompt_dir = COMMON_PROMPT_DIR
         else:
             self.common_prompt_dir = common_prompt_dir
+            
+        # Initialize logger with basename of the .co file
+        basename = os.path.basename(self.prompt_path).replace(".co", "")
+        self.logger = configure_logger_without_timestamp(basename)
 
     @classmethod
     def load(cls, name: str):
@@ -160,7 +166,8 @@ class Conceptualizer(Comind):
         # Load the schema from the prompt
         concept_schema = generated_lexicon_of("me.comind.blip.concept", fetch_refs=True)
         add_link_property(concept_schema, "connection_to_content", required=True)
-        return multiple_of_schema("concepts", concept_schema)
+
+        return multiple_of_schema("concepts", concept_schema, min_items=1)
     
     def run(self, context_dict: dict):
         response = super().run(context_dict)
@@ -189,12 +196,13 @@ class Conceptualizer(Comind):
             connection_to_content = concept.get("connection_to_content", None)
             concept_relationship = connection_to_content.get("relationship", None)
             concept_note = connection_to_content.get("note", None)
+            concept_strength = connection_to_content.get("strength", None)
             created_at = datetime.now().isoformat()
 
             # If we don't have a target but found a connection_to_content,
             # we should notify the user.
             if target is None:
-                logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
+                self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
             # Upload the concept to the Comind network
             log_base_str = f"{concept_text}"
@@ -202,14 +210,16 @@ class Conceptualizer(Comind):
                 log_base_str += f" - {concept_relationship}"
             if concept_note:
                 log_base_str += f" - {concept_note}"
-            logger.info(log_base_str)
+            if concept_strength:
+                log_base_str += f" - {concept_strength}"
+            self.logger.info(log_base_str)
 
             # Create printout string
             printout = f"""
 Concept: {concept_text}
 Connection to content: {connection_to_content}
 """
-            logger.debug(printout)
+            self.logger.debug(printout)
 
             concept_record = {
                 "$type": "me.comind.blip.concept",
@@ -238,10 +248,10 @@ Connection to content: {connection_to_content}
                 'cid': concept_creation_result["cid"],
             }
 
-            logger.debug(f"Concept creation result: {concept_creation_result}")
+            self.logger.debug(f"Concept creation result: {concept_creation_result}")
 
             # Upload the link to the Comind network
-            logger.debug(f"Uploading link: {connection_to_content}")
+            self.logger.debug(f"Uploading link: {connection_to_content}")
 
             if connection_to_content is not None and target is not None:
                 link_record = {
@@ -257,7 +267,7 @@ Connection to content: {connection_to_content}
                     link_record,
                 )
 
-                logger.debug(f"Link creation result: {record_result}")
+                self.logger.debug(f"Link creation result: {record_result}")
 
 if __name__ == "__main__":
     # Test the Comind class
