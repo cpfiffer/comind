@@ -31,6 +31,10 @@ STRIP_FIELDS = [
     "alt",
     "thumb",
     "fullsize",
+    "root",
+    "parent",
+    "created_at",
+    "py_type",
 ]
 
 def split_into_posts(text, category, max_length=MAX_POST_LENGTH):

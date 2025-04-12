@@ -48,6 +48,8 @@ class Comind:
         """Takes a name and attempts to return the specialized comind class"""
         if name == "conceptualizer":
             return Conceptualizer()
+        elif name == "feeler":
+            return Feeler()
         else:
             raise ValueError(f"Unknown comind: {name}")
 
@@ -166,7 +168,6 @@ class Conceptualizer(Comind):
         # Load the schema from the prompt
         concept_schema = generated_lexicon_of("me.comind.blip.concept", fetch_refs=True)
         add_link_property(concept_schema, "connection_to_content", required=True)
-
         return multiple_of_schema("concepts", concept_schema, min_items=1)
     
     def run(self, context_dict: dict):
@@ -269,9 +270,114 @@ Connection to content: {connection_to_content}
 
                 self.logger.debug(f"Link creation result: {record_result}")
 
+class Feeler(Comind):
+    def __init__(self):
+        super().__init__(
+            name="feeler",
+            prompt_path="prompts/cominds/feeler.co",
+            common_prompt_dir="prompts/common/",
+        )
+
+    def schema(self):
+        # Load the schema from the prompt
+        emotion_schema = generated_lexicon_of("me.comind.blip.emotion", fetch_refs=True)
+        add_link_property(emotion_schema, "connection_to_content", required=True)
+        return multiple_of_schema("emotions", emotion_schema, min_items=1)
+    
+    def run(self, context_dict: dict):
+        response = super().run(context_dict)
+        result = json.loads(response.choices[0].message.content)
+        return result
+    
+    def upload(
+        self,
+        result: dict,
+        record_manager: RecordManager,
+        target: Optional[str] = None,
+        sphere: Optional[str] = None,
+    ):
+        # Load the concepts
+        emotions = result["emotions"]
+
+        # Upload the concepts to the Comind network
+        for emotion in emotions:
+            emotion_type = emotion["emotionType"]
+            emotion_text = emotion["text"]
+            connection_to_content = emotion.get("connection_to_content", None)
+            emotion_relationship = connection_to_content.get("relationship", None)
+            emotion_note = connection_to_content.get("note", None)
+            emotion_strength = connection_to_content.get("strength", None)
+            created_at = datetime.now().isoformat()
+
+            # If we don't have a target but found a connection_to_content,
+            # we should notify the user.
+            if target is None:
+                self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
+
+            # Upload the concept to the Comind network
+            log_base_str = f"{emotion_type}"
+            if emotion_text:
+                log_base_str += f" - {emotion_text}"
+            if emotion_relationship:
+                log_base_str += f" - {emotion_relationship}"
+            if emotion_note:
+                log_base_str += f" - {emotion_note}"
+            if emotion_strength:
+                log_base_str += f" - {emotion_strength}"
+            self.logger.info(log_base_str)
+
+            # Create printout string
+            printout = f"""
+Emotion: {emotion_text}
+Connection to content: {connection_to_content}
+"""
+            self.logger.debug(printout)
+
+            emotion_record = {
+                "$type": "me.comind.blip.emotion",
+                "createdAt": created_at,
+                "generated": {
+                    "emotionType": emotion_type,
+                    "text": emotion_text,
+                },
+            }
+
+            # Upload the concept to the Comind network
+            emotion_creation_result = record_manager.create_record(
+                "me.comind.blip.emotion",
+                emotion_record,
+            )
+
+            source = {
+                'uri': emotion_creation_result["uri"],
+                'cid': emotion_creation_result["cid"],
+            }
+
+            self.logger.debug(f"Emotion creation result: {emotion_creation_result}")
+
+            # Upload the link to the Comind network
+            self.logger.debug(f"Uploading link: {connection_to_content}")
+
+            if connection_to_content is not None and target is not None:
+                link_record = {
+                    "$type": "me.comind.relationship.link",
+                    "createdAt": created_at,
+                    "source": source,
+                    "target": target,
+                    "generated": connection_to_content,
+                }
+
+                record_result = record_manager.create_record(
+                    "me.comind.relationship.link",
+                    link_record,
+                )
+
+                self.logger.debug(f"Link creation result: {record_result}")
+    
 if __name__ == "__main__":
     # Test the Comind class
-    comind = Conceptualizer()
+    # comind = Conceptualizer()
+    comind = Feeler()
     # print(comind.load_prompt())
     # print(comind.load_common_prompts())
 
@@ -287,10 +393,12 @@ if __name__ == "__main__":
             action_by = feed_view.reason.by.handle
             action = f'Reposted by @{action_by}'
 
-        post = feed_view.post.record
-        author = feed_view.post.author
+        post = feed_view.post
+        post_uri = post.uri
+        post_cid = post.cid
+        author = post.author
 
-        prompt = f'[{action}] {author.display_name}: {post.text}'
+        prompt = f'[{action}] {author.display_name}: {post.record.text}'
         print(prompt)
 
         context_dict = {
@@ -300,17 +408,14 @@ if __name__ == "__main__":
         print(result)
 
         # upload the result
-        comind.upload(result, record_manager, target=post.uri)
+        try:
+            comind.upload(
+                result,
+                record_manager,
+                target=post_uri,
+            )
+        except Exception as e:
+            print(e)
+            print(post)
+            raise e
 
-    # while True:
-    #     context_dict = {
-    #         "content": "Hello, world!"
-    #     }
-    #     print(comind.run(context_dict))
-
-    # concept_schema = generated_lexicon_of("me.comind.blip.concept")
-    # add_link_property(concept_schema, "connection_to_content", required=True)
-    # schema = multiple_of_schema("concepts", concept_schema)
-
-    # print(json.dumps(schema, indent=2))
-    # print(comind.run(context_dict, schema))

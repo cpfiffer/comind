@@ -265,7 +265,7 @@ async def process_event(
         post_uri: str,
         post_cid: str,
         root_post_uri: str = None,
-        thread_depth: int = 2,
+        thread_depth: int = 15,
         user_info_cache: UserInfoCache = None,
         comind: Comind = None
     ) -> None:
@@ -294,12 +294,16 @@ async def process_event(
         # Use depth=0 to fetch the complete thread with all replies
         # This ensures we get all branches of the conversation
         # TODO: #4 Provide post thread sampling to limit token usage
-        try:
-            thread = client.get_post_thread(thread_uri, depth=thread_depth)
-        except Exception as thread_error:
-            logger.error(f"Error getting thread with depth={thread_depth}: {thread_error}")
-            logger.info("Falling back to default thread retrieval")
-            thread = client.get_post_thread(thread_uri)
+        for i in range(10):
+            # Loop because the post may not yet be available
+            try:
+                thread = client.get_post_thread(thread_uri, depth=thread_depth)
+                break
+            except Exception as thread_error:
+                logger.error(f"Error getting thread with depth={thread_depth}: {thread_error}")
+                logger.info("Falling back to default thread retrieval")
+                time.sleep(1)
+                continue
 
         thread_data = thread.model_dump()
 
@@ -324,7 +328,17 @@ async def process_event(
         instructions_preamble = "## Instructions\nPlease respond."
 
         # Get the target post
-        target_post = client.get_posts([post_uri]).posts[0]
+        for i in range(10):
+            try:
+                target_posts = client.get_posts([post_uri])
+                target_post = target_posts.posts[0]
+                break
+            except Exception as e:
+                logger.error(f"Error getting target post: {e}")
+                time.sleep(1)
+                continue
+
+        # Strip the target post
         stripped_target_post = yaml.dump(
             strip_fields(target_post.model_dump(), STRIP_FIELDS), 
             indent=2
@@ -339,10 +353,10 @@ async def process_event(
 
         rows = [
             # "# Overview",
-            # user_info_preamble,
+            user_info_preamble,
             target_post_string,
-            # context_preamble,
-            # instructions_preamble,
+            context_preamble,
+            instructions_preamble,
         ]
 
         prompt = "\n\n".join(rows)
@@ -372,7 +386,7 @@ async def connect_to_jetstream(
         atproto_client: Client, 
         activated_dids_file: str,
         jetstream_host: str = JETSTREAM_HOST, 
-        thread_depth: int = 2, 
+        thread_depth: int = 15, 
         comind: Comind = None
     ) -> None:
     """Connect to Jetstream and process incoming messages"""
@@ -555,8 +569,8 @@ async def main():
                         help="Username for ATProto client")
     parser.add_argument("--password", "-p", type=str, default=None,
                         help="Password for ATProto client")
-    parser.add_argument("--thread-depth", "-t", type=int, default=2,
-                        help="Maximum depth of threads to process. Default is 2.")
+    parser.add_argument("--thread-depth", "-t", type=int, default=15,
+                        help="Maximum depth of threads to process. Default is 15.")
     parser.add_argument("--sphere", type=str, default=None,
                         help="Sphere to attach comind records to. Default is to not use a sphere.")
     parser.add_argument("--comind", "-c", type=str, default=None,

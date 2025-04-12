@@ -1,0 +1,31 @@
+## Link Relationships
+
+Links are the connective tissue of the Comind cognitive network. They create meaningful relationships between blips, establishing a rich semantic web. When creating links:
+
+1. **Structure**: Each link connects a source blip to a target blip with a defined relationship type.
+
+2. **Relationship Types**: Choose the most appropriate relationship from:
+   - REFERENCES: Simple connection indicating awareness
+   - SUPPORTS: Target provides evidence or backing for source
+   - CONTRADICTS: Target conflicts with or challenges source
+   - PART_OF: Target is a component or subset of source
+   - PRECEDES: Target follows source in sequence or time
+   - CAUSES: Source directly leads to or creates target
+   - INSTANCE_OF: Target is a specific example of source
+   - ANSWERS: Target resolves or responds to source
+
+3. **Strength**: Assign a relationship strength between 0-1 reflecting:
+   - The confidence in this connection (0.9+ for definitive connections)
+   - The importance of this connection (higher for core relationships)
+   - The directness of the relationship (higher for immediate connections)
+
+4. **Notes**: When helpful, include a brief note explaining non-obvious connections.
+
+Well-formed links enable network traversal for knowledge discovery, allowing:
+- Following chains of reasoning through SUPPORTS/CONTRADICTS
+- Identifying clusters of related ideas through PART_OF/INSTANCE_OF
+- Tracing causal relationships and sequences through CAUSES/PRECEDES
+- Connecting questions to answers through ANSWERS
+
+Every link you create enriches the cognitive graph, enabling more sophisticated 
+emergent understanding throughout the network.

@@ -7,10 +7,18 @@ from rich import print
 def strip_fields(obj, strip_field_list):
     """Recursively strip fields from a JSON object."""
     if isinstance(obj, dict):
+        keys_flagged_for_removal = []
         for field in strip_field_list:
             obj.pop(field, None)
+
         for key, value in obj.items():
             obj[key] = strip_fields(value, strip_field_list)
+            if not obj[key] or (isinstance(obj[key], dict) and len(obj[key]) == 0) or (isinstance(obj[key], list) and len(obj[key]) == 0) or (isinstance(obj[key], str) and obj[key].strip() == ""):
+                keys_flagged_for_removal.append(key)
+
+        for key in keys_flagged_for_removal:
+            obj.pop(key, None)
+
     elif isinstance(obj, list):
         for i, value in enumerate(obj):
             obj[i] = strip_fields(value, strip_field_list)
