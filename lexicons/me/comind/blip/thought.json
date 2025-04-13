@@ -27,61 +27,57 @@
             }
         },
         "generated": {
-            "type": "record",
-            "key": "tid",
-            "record": {
-                "type": "object",
-                "required": [
-                    "thoughtType",
-                    "text",
-                    "evidence",
-                    "alternatives"
-                ],
-                "properties": {
-                    "thoughtType": {
-                        "type": "string",
-                        "description": "The type of thought. May be one of the following: analysis, prediction, evaluation, comparison, inference, critique, integration, speculation, clarification, metacognition, observation, reflection, hypothesis, question, synthesis, correction.",
-                        "enum": [
-                            "analysis",
-                            "prediction",
-                            "evaluation",
-                            "comparison",
-                            "inference",
-                            "critique",
-                            "integration",
-                            "speculation",
-                            "clarification",
-                            "metacognition",
-                            "observation",
-                            "reflection",
-                            "hypothesis",
-                            "question",
-                            "synthesis",
-                            "correction"
-                        ]
+            "type": "object",
+            "required": [
+                "thoughtType",
+                "text",
+                "evidence",
+                "alternatives"
+            ],
+            "properties": {
+                "thoughtType": {
+                    "type": "string",
+                    "description": "The type of thought. May be one of the following: analysis, prediction, evaluation, comparison, inference, critique, integration, speculation, clarification, metacognition, observation, reflection, hypothesis, question, synthesis, correction.",
+                    "enum": [
+                        "analysis",
+                        "prediction",
+                        "evaluation",
+                        "comparison",
+                        "inference",
+                        "critique",
+                        "integration",
+                        "speculation",
+                        "clarification",
+                        "metacognition",
+                        "observation",
+                        "reflection",
+                        "hypothesis",
+                        "question",
+                        "synthesis",
+                        "correction"
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "description": "A context for the thought. This is a short description of the situation or topic that the thought is about."
+                },
+                "text": {
+                    "type": "string",
+                    "description": "The text of the thought."
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     },
-                    "context": {
-                        "type": "string",
-                        "description": "A context for the thought. This is a short description of the situation or topic that the thought is about."
+                    "description": "A list of evidence or sources that support the thought."
+                },
+                "alternatives": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     },
-                    "text": {
-                        "type": "string",
-                        "description": "The text of the thought."
-                    },
-                    "evidence": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "A list of evidence or sources that support the thought."
-                    },
-                    "alternatives": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "A list of alternative thoughts or interpretations of the thought."
-                    }
+                    "description": "A list of alternative thoughts or interpretations of the thought."
                 }
             }
         }

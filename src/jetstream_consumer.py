@@ -288,7 +288,8 @@ async def process_event(
 
         # Get the thread containing the post. If a root post URI is provided, use that
         # to get the thread, otherwise use the post URI.
-        thread_uri = root_post_uri if root_post_uri else post_uri
+        # thread_uri = root_post_uri if root_post_uri else post_uri
+        thread_uri = post_uri
         logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
 
         # Use depth=0 to fetch the complete thread with all replies
