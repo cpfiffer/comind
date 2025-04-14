@@ -1,4 +1,4 @@
-# Comind
+![Comind logo](/static/images/logo-dark.png)
 
 Open-source components for Comind, the cognitive layer for the web.
 
