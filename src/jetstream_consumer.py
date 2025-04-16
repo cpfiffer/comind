@@ -430,9 +430,10 @@ async def connect_to_jetstream(
             # Configure websocket with ping interval and timeout
             async with websockets.connect(
                 ws_uri,
-                ping_interval=20,  # Send a ping every 20 seconds
-                ping_timeout=10,   # Wait 10 seconds for pong response
-                close_timeout=5    # Allow 5 seconds for graceful close
+                ping_interval=30,  # Send a ping every 30 seconds
+                ping_timeout=20,   # Wait 20 seconds for pong response
+                close_timeout=10,  # Allow 10 seconds for graceful close
+                max_size=10_000_000  # Increase max message size to 10MB
             ) as websocket:
                 logger.info("Connected to jetstream")
                 reconnect_needed = False
@@ -456,7 +457,7 @@ async def connect_to_jetstream(
                     try:
                         # Receive message from Jetstream with timeout 
                         # Use a shorter timeout than the ping_interval to ensure we can send pings
-                        message = await asyncio.wait_for(websocket.recv(), timeout=5)
+                        message = await asyncio.wait_for(websocket.recv(), timeout=15)
                         event = json.loads(message)
                         author_did = event.get("did", None)
                         if author_did is None:
