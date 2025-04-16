@@ -26,9 +26,6 @@ menu:
     - name: Docs
       pageRef: /docs
       weight: 1
-    - name: About
-      pageRef: /about
-      weight: 2
     - name: Blog
       pageRef: /blog
       weight: 3
@@ -45,8 +42,15 @@ menu:
 
 params:
   navbar:
-    displayTitle: true
-    displayLogo: false
+    displayTitle: false
+    displayLogo: true
+
+    logo:
+      path: /logo-dark.svg
+      dark: /logo-dark.svg
+      link: /
+      width: 200
+      height: 20
 
   footer:
     displayCopyright: false

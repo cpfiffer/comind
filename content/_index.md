@@ -5,12 +5,12 @@ toc: false
 draft: false
 ---
 
-# Comind
+<img src="/logo-dark.svg" alt="Comind Logo" width="100%">
 
 Tools for distributed machine cognition on AT Protocol.
 
-> [!WARNING] 
-> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors. 
+> [!WARNING]
+> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors.
 
 ## What is Comind?
 
