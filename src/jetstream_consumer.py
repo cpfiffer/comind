@@ -427,7 +427,13 @@ async def connect_to_jetstream(
         logger.debug(f"WebSocket URI: {ws_uri}")
 
         try:
-            async with websockets.connect(ws_uri) as websocket:
+            # Configure websocket with ping interval and timeout
+            async with websockets.connect(
+                ws_uri,
+                ping_interval=20,  # Send a ping every 20 seconds
+                ping_timeout=10,   # Wait 10 seconds for pong response
+                close_timeout=5    # Allow 5 seconds for graceful close
+            ) as websocket:
                 logger.info("Connected to jetstream")
                 reconnect_needed = False
 
@@ -448,8 +454,9 @@ async def connect_to_jetstream(
 
                     # Set timeout for websocket receive to allow periodic DID checks
                     try:
-                        # Receive message from Jetstream with timeout
-                        message = await asyncio.wait_for(websocket.recv(), timeout=10)
+                        # Receive message from Jetstream with timeout 
+                        # Use a shorter timeout than the ping_interval to ensure we can send pings
+                        message = await asyncio.wait_for(websocket.recv(), timeout=5)
                         event = json.loads(message)
                         author_did = event.get("did", None)
                         if author_did is None:
@@ -545,10 +552,14 @@ async def connect_to_jetstream(
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
             await asyncio.sleep(RECONNECT_DELAY)
 
+        except websockets.exceptions.ConnectionClosedError as e:
+            logger.error(f"WebSocket connection closed: {e}")
+            logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
+            await asyncio.sleep(RECONNECT_DELAY)
+            
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
-            raise e
             await asyncio.sleep(RECONNECT_DELAY)
 
 
