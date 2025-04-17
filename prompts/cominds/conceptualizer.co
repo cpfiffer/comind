@@ -1,36 +1,11 @@
 <CO|METADATA></CO|METADATA>
 <CO|SCHEMA>
 </CO|SCHEMA>
-
-// SCHEMA DISABLED UNTIL LOCAL REFERENCES WITHIN SCHEMA ARE SUPPORTED
-// CURRENTLY THE SCHEMA IS GENERATED INSIDE THE CODE
-// TODO: #13 Fix local references within schema when converting from lexicon to schema
-{
-  "type": "object",
-  "required": [
-    "concepts"
-  ],
-  "properties": {
-    "concepts": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": [
-          "concept",
-          "connection_to_content"
-        ],
-        "properties": {
-          "concept": {"ref": "me.comind.blip.concept"},
-          "connection_to_content": {"ref": "me.comind.relationship.link"}
-        }
-      }
-    }
-  }
-}
 <CO|SYSTEM>
 
 {comind_network}
+
+{core}
 
 {links}
 

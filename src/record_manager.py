@@ -69,6 +69,15 @@ class RecordManager:
                     'sphere_uri': sphere_uri
                 }
             }
+        
+    def get_sphere_record(self):
+        """
+        Get the sphere record.
+        """
+        return self.try_get_record(
+            self.sphere_collection, 
+            self.sphere_rkey
+        )
 
     def get_perspective(self):
         """
@@ -84,21 +93,11 @@ class RecordManager:
             logger.error("No sphere URI set. Cannot get perspective.")
             raise ValueError("No sphere URI set. Cannot get perspective.")
             
-        print(f"Getting perspective from sphere: {self.sphere_uri}")
-        record = self.try_get_record(
-            self.sphere_collection, 
-            self.sphere_rkey
-        )
-        
-        if not record:
-            logger.error(f"Failed to get perspective record from {self.sphere_collection}/{self.sphere_rkey}")
-            raise ValueError(f"Failed to get perspective record from {self.sphere_collection}/{self.sphere_rkey}")
-            
-        if 'value' not in record.value or 'text' not in record.value:
-            logger.error(f"Perspective record does not contain 'text' field: {record}")
-            raise ValueError(f"Perspective record does not contain required 'text' field")
-        
-        return record.value['text']
+        record = self.get_sphere_record()
+        if record:
+            return record.value['text']
+        else:
+            return None
 
 
     def try_get_record(self, collection: str, rkey: str) -> Optional[Dict]:
@@ -188,7 +187,7 @@ class RecordManager:
             response = self.client.com.atproto.repo.create_record(create_params)
         
             if self.sphere_uri is not None:
-                logger.info(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
+                logger.debug(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
                 self.client.com.atproto.repo.create_record(
                     self.sphere_record(response.uri, self.sphere_uri)
                 )

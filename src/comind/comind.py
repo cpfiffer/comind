@@ -25,8 +25,9 @@ class Comind:
     prompt_path: str
     common_prompt_dir: str
     logger: logging.Logger
+    core_perspective: str = None
 
-    def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None):
+    def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None, core_perspective: str = None):
         self.name = name
 
         if prompt_path is None:
@@ -38,6 +39,9 @@ class Comind:
             self.common_prompt_dir = COMMON_PROMPT_DIR
         else:
             self.common_prompt_dir = common_prompt_dir
+
+        if core_perspective is not None:
+            self.core_perspective = core_perspective
             
         # Initialize logger with basename of the .co file
         basename = os.path.basename(self.prompt_path).replace(".co", "")
@@ -65,11 +69,60 @@ class Comind:
             with open(os.path.join(self.common_prompt_dir, file), "r") as f:
                 bn = os.path.basename(file).replace(".co", "")
                 common_prompts[bn] = f.read()
+
+        if self.core_perspective is not None and "core_perspective" not in common_prompts:
+            common_prompts["core_perspective"] = self.core_perspective
+
         return common_prompts
     
     def to_prompt(self, context_dict: dict):
-        prompt = self.load_prompt()
-        return prompt
+        """
+        Load and format the prompt with values from context_dict.
+        
+        Args:
+            context_dict: Dictionary containing values to format into the prompt
+            
+        Returns:
+            The formatted prompt
+            
+        Raises:
+            ValueError: If core_perspective is None
+        """
+        raw_prompt = self.load_prompt()
+        
+        # Load common prompts and add them to the context
+        common_prompts = self.load_common_prompts()
+        for common_key, common_content in common_prompts.items():
+            # Avoid overwriting existing keys
+            if common_key not in context_dict:
+                context_dict[common_key] = common_content
+                self.logger.debug(f"Added common prompt '{common_key}' to context")
+            else:
+                self.logger.debug(f"Common prompt '{common_key}' already in context, not overwriting")
+
+        # Validate that core_perspective is in the context_dict
+        if 'core_perspective' not in context_dict:
+            self.logger.warning("Missing core_perspective in context_dict. This will result in unformatted placeholders.")
+        elif context_dict['core_perspective'] is None:
+            self.logger.error("core_perspective is None. Check that the sphere record exists and contains a valid text field.")
+            raise ValueError("Core perspective is required but was None")
+        
+        # Format the common prompts
+        for common_key, common_content in common_prompts.items():
+            context_dict[common_key] = common_content.format(**context_dict)
+                
+        # Log the keys available in context_dict to help with debugging
+        self.logger.debug(f"Context keys: {list(context_dict.keys())}")
+        
+        try:
+            # Actually format the prompt with the values from context_dict
+            formatted_prompt = raw_prompt.format(**context_dict)
+            return formatted_prompt
+        except KeyError as e:
+            self.logger.error(f"Missing key in context_dict for prompt formatting: {e}")
+            # Continue without raising, return the raw prompt
+            self.logger.warning("Returning unformatted prompt due to missing key")
+            return raw_prompt
     
     def split_prompts(self, context_dict: dict = {}, format: bool = True):
         """
@@ -82,6 +135,7 @@ class Comind:
         
         Tags may be in any order. User prompts are required.
         """
+        # Get the already formatted prompt from to_prompt
         prompt = self.to_prompt(context_dict)
 
         # Load a prompt from a file and strip out the tags
@@ -93,34 +147,18 @@ class Comind:
         system_match = re.search(system_regex, prompt, re.DOTALL)
         schema_match = re.search(schema_regex, prompt, re.DOTALL)
 
-        user_prompt = user_match.group(1).strip() if user_match else ""
-        system_prompt = system_match.group(1).strip() if system_match else ""
-        schema_prompt = schema_match.group(1).strip() if schema_match else ""
-
         if not user_match:
             raise ValueError("User prompt is required.")
         
-        system_prompt = system_match.group(1) if system_match else None
-        schema_prompt = schema_match.group(1) if schema_match else None
-        user_prompt = user_match.group(1)
+        system_prompt = system_match.group(1).strip() if system_match else None
+        schema_prompt = schema_match.group(1).strip() if schema_match else None
+        user_prompt = user_match.group(1).strip() if user_match else None
 
-        # Set up prompt formatting
-        common_prompts = self.load_common_prompts()
-
-        # Merge common prompts into context_dict
-        for common_prompt in common_prompts:
-            context_dict[common_prompt] = common_prompts[common_prompt]
-
-        if system_prompt and format:
-            system_prompt = system_prompt.format(**context_dict)
-
-        if user_prompt and format:
-            user_prompt = user_prompt.format(**context_dict)
-
+        # No need to format again, the prompt was already formatted in to_prompt
         return {
-            "system": system_prompt.strip() if system_prompt else None,
-            "schema": schema_prompt.strip() if schema_prompt else None,
-            "user": user_prompt.strip()
+            "system": system_prompt,
+            "schema": schema_prompt,
+            "user": user_prompt
         }
     
     def messages(self, values: dict):
@@ -131,28 +169,40 @@ class Comind:
         return messages
     
     def run(self, context_dict: dict, schema: str = None):
+        """
+        Run the comind with the given context_dict and schema.
+        
+        Args:
+            context_dict: Dictionary containing values to format into the prompt
+            schema: Optional schema to use for generation
+            
+        Returns:
+            The generated result
+        """
         prompts = self.split_prompts(context_dict)
         messages = self.messages(prompts)
+        
+        # Debug log to see the actual prompts being sent
+        if prompts["system"]:
+            first_50_chars = prompts["system"][:50] + "..." if len(prompts["system"]) > 50 else prompts["system"]
+            self.logger.debug(f"System prompt (first 50 chars): {first_50_chars}")
+            
+            # Check if core_perspective is properly formatted
+            if "{core_perspective}" in prompts["system"]:
+                self.logger.error("Unformatted placeholder {core_perspective} found in system prompt")
+            
+        if prompts["user"]:
+            first_50_chars = prompts["user"][:50] + "..." if len(prompts["user"]) > 50 else prompts["user"]
+            self.logger.debug(f"User prompt (first 50 chars): {first_50_chars}")
+            
+            # Check if content is properly formatted
+            if "{content}" in prompts["user"]:
+                self.logger.error("Unformatted placeholder {content} found in user prompt")
 
         if schema:
             self.logger.warning("Schema provided to comind.run() is not currently supported. Set a schema() method instead for comind subclasses.")
 
         schema = self.schema()
-
-
-
-        # if not schema:
-        #     # Check if we have one in the prompts dict. Must be 
-        #     # nonzero length and valid JSON.
-        #     if "schema" in prompts:
-        #         # If we had a schema in the prompts, we should try to use
-        #         # a comind-specific schema.
-        #         try:
-        #             schema = self.schema()
-        #         except json.JSONDecodeError:
-        #             raise ValueError("Schema is not valid JSON.")
-        #     else:
-        #         raise ValueError("Schema is required.")
 
         return sg.generate_by_schema(messages, schema)
 
@@ -504,7 +554,29 @@ if __name__ == "__main__":
 
     # Log in
     client = default_login()
-    record_manager = RecordManager(client, 'at://comind.stream/me.comind.sphere.core/void')
+    record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/materials')
+    # record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/me')
+
+    # sphere_record = record_manager.get_sphere_record()
+    # perspective = sphere_record.value['text']
+    
+    
+    try:
+        core_perspective = record_manager.get_perspective()
+        if not core_perspective:
+            raise ValueError("Core perspective was retrieved but is empty")
+            
+        # Print the first 100 characters of the core perspective for debugging
+        print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
+    except Exception as e:
+        comind.logger.error(f"Failed to get core perspective: {e}")
+        print(f"[red]Error:[/red] Failed to get core perspective: {e}")
+        print("Using placeholder core perspective for testing.")
+        core_perspective = "This is a placeholder core perspective for testing."
+
+    # Print the common prompts that are being loaded
+    common_prompts = comind.load_common_prompts()
+    print(f"Common prompts loaded: {list(common_prompts.keys())}")
 
     # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
     timeline = client.get_timeline(algorithm='reverse-chronological')
@@ -520,22 +592,25 @@ if __name__ == "__main__":
         author = post.author
 
         prompt = f'[{action}] {author.display_name}: {post.record.text}'
-        print(prompt)
 
         context_dict = {
-            "content": prompt
+            "content": prompt,
+            "core_perspective": core_perspective,
         }
-        result = comind.run(context_dict)
-        print(result)
-
-        # upload the result
+        
         try:
+            result = comind.run(context_dict)
+            print(result)
+
+            # upload the result
             comind.upload(
                 result,
                 record_manager,
                 target=post_uri,
             )
         except Exception as e:
-            print(e)
-            print(post)
-            raise e
+            comind.logger.error(f"Error processing post: {e}")
+            print(f"[red]Error processing post:[/red] {e}")
+            print(f"Post: {post}")
+            # Continue with next post rather than crashing
+            continue

@@ -9,6 +9,8 @@
 
 {comind_network}
 
+{core}
+
 {links}
 
 ## Your role
@@ -30,6 +32,7 @@ When generating emotions, adhere to these principles:
 5. Provide 2-6 emotions to capture the affective complexity of the content
 6. Focus on different aspects of the content rather than redundant emotions
 7. Include both primary emotions (joy, sadness) and complex cognitive emotions (curiosity, realization)
+8. Use the active voice, as in "I feel <blank> becase <x> . . ."
 
 The emotion types you can use include: joy, sadness, anger, fear, trust, disgust, 
 surprise, anticipation, curiosity, hope, serenity, gratitude, admiration, awe, 
