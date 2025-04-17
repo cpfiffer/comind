@@ -42,12 +42,20 @@ class RecordManager:
         """
         self.client = client
         self.sphere_uri = sphere
+
+        if sphere:
+            splat = sphere.split("/")
+            self.sphere_rkey = splat[-1]
+            self.sphere_collection = splat[-2]
+            print(self.sphere_rkey)
+            print(self.sphere_collection)
         
         logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
 
     def sphere_record(self, target: str, sphere_uri: str = None):
         if sphere_uri is None:
             sphere_uri = self.sphere_uri
+            
 
         if sphere_uri is None:
             return None
@@ -61,6 +69,36 @@ class RecordManager:
                     'sphere_uri': sphere_uri
                 }
             }
+
+    def get_perspective(self):
+        """
+        Get the perspective text from the sphere record.
+        
+        Returns:
+            The perspective text from the sphere record.
+            
+        Raises:
+            ValueError: If the sphere URI is not set or the perspective record cannot be found.
+        """
+        if not self.sphere_uri:
+            logger.error("No sphere URI set. Cannot get perspective.")
+            raise ValueError("No sphere URI set. Cannot get perspective.")
+            
+        print(f"Getting perspective from sphere: {self.sphere_uri}")
+        record = self.try_get_record(
+            self.sphere_collection, 
+            self.sphere_rkey
+        )
+        
+        if not record:
+            logger.error(f"Failed to get perspective record from {self.sphere_collection}/{self.sphere_rkey}")
+            raise ValueError(f"Failed to get perspective record from {self.sphere_collection}/{self.sphere_rkey}")
+            
+        if 'value' not in record.value or 'text' not in record.value:
+            logger.error(f"Perspective record does not contain 'text' field: {record}")
+            raise ValueError(f"Perspective record does not contain required 'text' field")
+        
+        return record.value['text']
 
 
     def try_get_record(self, collection: str, rkey: str) -> Optional[Dict]:
