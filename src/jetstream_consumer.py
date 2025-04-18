@@ -320,8 +320,19 @@ async def process_event(
         actor_info = user_info_cache.get_user_info(author_did)
         if actor_info is None:
             logger.error(f"Actor info not found for post {post_uri}")
-            return
 
+            # Resolve the handle to a DID
+            actor_did = resolve_handle_to_did(
+                client, 
+                author_did, 
+                user_info_cache
+            )
+
+            actor_info = user_info_cache.get_user_info(actor_did)
+            if actor_info is None:
+                logger.error(f"Failed to resolve handle to DID for post {post_uri}")
+                return
+            
         # Info premble
         user_info_preamble = f"## User information\nDisplay name: {actor_info.display_name}\nHandle: {actor_info.handle}\nDescription: {actor_info.description}"
         context_preamble = f"## Context\n{thread_string}"
@@ -668,6 +679,7 @@ async def main():
 
     # Create the comind
     comind = Comind.load(args.comind)
+    comind.core_perspective = sphere_to_use.value["text"]
 
     try:
         await connect_to_jetstream(
