@@ -6,12 +6,14 @@ import os
 import re
 import json
 import logging
+from time import time
 from src.session_reuse import default_login
 import src.structured_gen as sg
 from src.lexicon_utils import generated_lexicon_of, multiple_of_schema, add_link_property
 from src.record_manager import RecordManager
 from typing import Optional
 from rich import print
+from rich.panel import Panel
 from src.comind.logging_config import configure_logger_without_timestamp, configure_root_logger_without_timestamp
 
 # Configure root logger without timestamps - this affects all logging in the application
@@ -546,11 +548,13 @@ Connection to content: {connection_to_content}
     
 if __name__ == "__main__":
     # Test the Comind class
-    # comind = Conceptualizer()
-    # comind = Feeler()
-    comind = Thinker()
+    comind1 = Conceptualizer()
+    comind2 = Feeler()
+    comind3 = Thinker()
     # print(comind.load_prompt())
     # print(comind.load_common_prompts())
+
+    cominds = [comind1, comind2, comind3]
 
     # Log in
     client = default_login()
@@ -560,57 +564,112 @@ if __name__ == "__main__":
     # sphere_record = record_manager.get_sphere_record()
     # perspective = sphere_record.value['text']
     
+    generated_strings = []
     
-    try:
-        core_perspective = record_manager.get_perspective()
-        if not core_perspective:
-            raise ValueError("Core perspective was retrieved but is empty")
-            
-        # Print the first 100 characters of the core perspective for debugging
-        print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
-    except Exception as e:
-        comind.logger.error(f"Failed to get core perspective: {e}")
-        print(f"[red]Error:[/red] Failed to get core perspective: {e}")
-        print("Using placeholder core perspective for testing.")
-        core_perspective = "This is a placeholder core perspective for testing."
-
-    # Print the common prompts that are being loaded
-    common_prompts = comind.load_common_prompts()
-    print(f"Common prompts loaded: {list(common_prompts.keys())}")
-
-    # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
-    timeline = client.get_timeline(algorithm='reverse-chronological')
-    for feed_view in timeline.feed:
-        action = 'New Post'
-        if feed_view.reason:
-            action_by = feed_view.reason.by.handle
-            action = f'Reposted by @{action_by}'
-
-        post = feed_view.post
-        post_uri = post.uri
-        post_cid = post.cid
-        author = post.author
-
-        prompt = f'[{action}] {author.display_name}: {post.record.text}'
-
-        context_dict = {
-            "content": prompt,
-            "core_perspective": core_perspective,
-        }
-        
+    for comind in cominds:
         try:
-            result = comind.run(context_dict)
-            print(result)
-
-            # upload the result
-            comind.upload(
-                result,
-                record_manager,
-                target=post_uri,
-            )
+            core_perspective = record_manager.get_perspective()
+            if not core_perspective:
+                raise ValueError("Core perspective was retrieved but is empty")
+                
+            # Print the first 100 characters of the core perspective for debugging
+            print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
         except Exception as e:
-            comind.logger.error(f"Error processing post: {e}")
-            print(f"[red]Error processing post:[/red] {e}")
-            print(f"Post: {post}")
-            # Continue with next post rather than crashing
-            continue
+            comind.logger.error(f"Failed to get core perspective: {e}")
+            print(f"[red]Error:[/red] Failed to get core perspective: {e}")
+            print("Using placeholder core perspective for testing.")
+            core_perspective = "This is a placeholder core perspective for testing."
+
+        # Print the common prompts that are being loaded
+        common_prompts = comind.load_common_prompts()
+        print(f"Common prompts loaded: {list(common_prompts.keys())}")
+
+        # Types dict
+        blip_types = {}
+
+        # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
+        timeline = client.get_timeline(algorithm='reverse-chronological')
+        for feed_view in timeline.feed:
+            action = 'New Post'
+            if feed_view.reason:
+                action_by = feed_view.reason.by.handle
+                action = f'Reposted by @{action_by}'
+
+            post = feed_view.post
+            post_uri = post.uri
+            post_cid = post.cid
+            author = post.author
+
+            prompt = f'[{action}] {author.display_name}: {post.record.text}'
+
+            context_dict = {
+                "content": prompt,
+                "core_perspective": core_perspective,
+            }
+            
+            try:
+                result = comind.run(context_dict)
+                print(result)
+
+                if isinstance(comind, Feeler):
+                    for emotion in result["emotions"]:
+                        etype = emotion["emotionType"]
+                        if etype not in blip_types:
+                            blip_types[etype] = 0
+                        blip_types[etype] += 1
+                elif isinstance(comind, Thinker):
+                    for thought in result["thoughts"]:
+                        ttype = thought["thoughtType"]
+                        if ttype not in blip_types:
+                            blip_types[ttype] = 0
+                        blip_types[ttype] += 1
+                elif isinstance(comind, Conceptualizer):
+                    for concept in result["concepts"]:
+                        ctype = concept["text"]
+                        if ctype not in blip_types:
+                            blip_types[ctype] = 0
+                        blip_types[ctype] += 1
+
+                # upload the result
+                comind.upload(
+                    result,
+                    record_manager,
+                    target=post_uri,
+                )
+
+                # Print out the count of different concept types.
+                # print(blip_types)
+
+                # generated text
+                for thing in result["concepts"]:
+                    generated_strings.append(thing["text"])
+
+
+                user_prompt = "Here is a list of concepts occuring currently, with the most\n" + \
+                    "recent at the bottom. Give me the zeitgeist.\n" + \
+                    "\n".join(generated_strings)
+                
+                model_statement = sg.generate_by_schema(
+                    sg.messages(user_prompt),
+                    """
+                    {
+                        "type": "object",
+                        "required": ["zeitgeist"],
+                        "properties": {
+                            "zeitgeist": {"type": "string"}
+                        }
+                    }
+                    """
+                )
+
+                new_txt = json.loads(model_statement.choices[0].message.content)
+
+                print(Panel(new_txt['zeitgeist']))
+
+                time.sleep(60)
+            except Exception as e:
+                comind.logger.error(f"Error processing post: {e}")
+                print(f"[red]Error processing post:[/red] {e}")
+                print(f"Post: {post}")
+                # Continue with next post rather than crashing
+                continue
