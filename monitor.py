@@ -2,18 +2,26 @@
 # Simple fasthtml app to monitor comind records
 
 import os
+import sys
+import logging
 from typing import Dict, List, Optional
 import datetime
 from atproto_client import Client as AtProtoClient
+from atproto_client import Session, SessionEvent
 from dotenv import load_dotenv
 from fasthtml.common import *
 
-# Load environment variables
-load_dotenv()
+from rich import print
 
-# ATProto credentials
-BSKY_USERNAME = os.getenv("COMIND_BSKY_USERNAME")
-BSKY_PASSWORD = os.getenv("COMIND_BSKY_PASSWORD")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("monitor")
+
+# Load environment variables
+load_dotenv(override=True)
 
 # Define collections to monitor
 COLLECTIONS = [
@@ -26,24 +34,67 @@ COLLECTIONS = [
 ]
 
 # Create FastHTML app
-app, rt = fast_app()
+app, rt = fast_app(debug=True)  # Enable debug mode to see detailed errors
+
+# Session reuse functions
+def get_session(username: str) -> Optional[str]:
+    try:
+        with open(f'session_{username}.txt', encoding='UTF-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.debug(f"No existing session found for {username}")
+        return None
+
+def save_session(username: str, session_string: str) -> None:
+    with open(f'session_{username}.txt', 'w', encoding='UTF-8') as f:
+        f.write(session_string)
+    logger.debug(f"Session saved for {username}")
+
+def on_session_change(username: str, event: SessionEvent, session: Session) -> None:
+    logger.info(f'Session changed: {event} {repr(session)}')
+    if event in (SessionEvent.CREATE, SessionEvent.REFRESH):
+        logger.info(f'Saving changed session for {username}')
+        save_session(username, session.export())
+
+def init_client(username: str, password: str) -> AtProtoClient:
+    pds_uri = os.getenv("COMIND_PDS_URI")
+    if pds_uri is None:
+        logger.warning("No PDS URI provided. Falling back to bsky.social.")
+        pds_uri = "https://bsky.social"
+        
+    logger.info(f"Using PDS URI: {pds_uri}")
+
+    client = AtProtoClient(pds_uri)
+    client.on_session_change(lambda event, session: on_session_change(username, event, session))
+
+    session_string = get_session(username)
+    if session_string:
+        logger.info(f'Reusing existing session for {username}')
+        client.login(session_string=session_string)
+    else:
+        logger.info(f'Creating new session for {username}')
+        client.login(username, password)
+
+    return client
+
+def default_login() -> AtProtoClient:
+    username = os.getenv("COMIND_BSKY_USERNAME")
+    password = os.getenv("COMIND_BSKY_PASSWORD")
+
+    if username is None:
+        logger.error("No username provided. Please set COMIND_BSKY_USERNAME env variable.")
+        raise ValueError("No username provided")
+
+    if password is None:
+        logger.error("No password provided. Please set COMIND_BSKY_PASSWORD env variable.")
+        raise ValueError("No password provided")
+
+    return init_client(username, password)
 
 def format_datetime(dt_str: str) -> str:
     """Format datetime string to more readable format"""
     dt = datetime.datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
     return dt.strftime("%Y-%m-%d %H:%M:%S")
-
-def init_client() -> AtProtoClient:
-    """Initialize ATProto client with credentials"""
-    if not BSKY_USERNAME or not BSKY_PASSWORD:
-        raise ValueError(
-            "No credentials provided. Please set COMIND_BSKY_USERNAME and "
-            "COMIND_BSKY_PASSWORD environment variables."
-        )
-    
-    client = AtProtoClient()
-    client.login(BSKY_USERNAME, BSKY_PASSWORD)
-    return client
 
 def get_recent_records(client: AtProtoClient, collection: str, limit: int = 10) -> List[Dict]:
     """Get recent records from a collection"""
@@ -55,40 +106,46 @@ def get_recent_records(client: AtProtoClient, collection: str, limit: int = 10) 
         })
         return response.records
     except Exception as e:
-        print(f"Error listing records in collection {collection}: {str(e)}")
+        logger.error(f"Error listing records in collection {collection}: {str(e)}")
         return []
 
 def render_record_card(record, collection):
     """Render a record as a card"""
-    record_data = record.value
+    record_data = record.model_dump()['value']
     uri_parts = record.uri.split('/')
     rkey = uri_parts[-1]
-    
+
     # Extract record type-specific information
     title = ""
     body = ""
-    
+
+    # Safely access dictionary values without using .get()
     if collection == "me.comind.sphere.core":
-        title = record_data.get("title", "Untitled Sphere")
-        body = record_data.get("text", "")
+        title = record_data["title"] if "title" in record_data else "Untitled Sphere"
+        body = record_data["text"] if "text" in record_data else ""
     elif collection == "me.comind.blip.thought":
-        title = f"Thought: {record_data.get('generated', {}).get('thoughtType', 'Unknown')}"
-        body = record_data.get('generated', {}).get('text', '')
+        generated = record_data["generated"] if "generated" in record_data else {}
+        title = f"Thought: {generated.get('thoughtType', 'Unknown')}" if isinstance(generated, dict) else "Thought: Unknown"
+        body = generated.get('text', '') if isinstance(generated, dict) else ''
     elif collection == "me.comind.blip.emotion":
-        title = f"Emotion: {record_data.get('generated', {}).get('emotionType', 'Unknown')}"
-        body = record_data.get('generated', {}).get('text', '')
+        generated = record_data["generated"] if "generated" in record_data else {}
+        title = f"Emotion: {generated.get('emotionType', 'Unknown')}" if isinstance(generated, dict) else "Emotion: Unknown"
+        body = generated.get('text', '') if isinstance(generated, dict) else ''
     elif collection == "me.comind.blip.concept":
-        title = "Concept"
-        body = record_data.get('generated', {}).get('text', '')
+        generated = record_data["generated"] if "generated" in record_data else {}
+        title = generated.get('text', '')
+        body = generated.get('text', '') if isinstance(generated, dict) else ''
     elif collection == "me.comind.meld.request":
-        title = f"Meld Request: {record_data.get('generated', {}).get('requestType', 'Unknown')}"
-        body = record_data.get('generated', {}).get('prompt', '')
+        generated = record_data["generated"] if "generated" in record_data else {}
+        title = f"Meld Request: {generated.get('requestType', 'Unknown')}" if isinstance(generated, dict) else "Meld Request: Unknown"
+        body = generated.get('prompt', '') if isinstance(generated, dict) else ''
     elif collection == "me.comind.meld.response":
         title = "Meld Response"
-        body = record_data.get('generated', {}).get('content', '')
+        generated = record_data["generated"] if "generated" in record_data else {}
+        body = generated.get('content', '') if isinstance(generated, dict) else ''
     
     # Format created date if available
-    created_at = record_data.get("createdAt", "")
+    created_at = record_data["createdAt"] if "createdAt" in record_data else ""
     created_formatted = format_datetime(created_at) if created_at else ""
     
     return Div(
@@ -104,7 +161,7 @@ def render_record_card(record, collection):
 def get():
     """Main page showing all recent records"""
     try:
-        client = init_client()
+        client = default_login()
         
         collection_sections = []
         
@@ -142,6 +199,7 @@ def get():
             cls="container"
         )
     except Exception as e:
+        raise e
         return Title("Error"), Div(
             H1("Error"),
             P(f"An error occurred: {str(e)}"),
@@ -152,8 +210,9 @@ def get():
 def get_collection(collection: str):
     """View records for a specific collection"""
     try:
-        client = init_client()
+        client = default_login()
         records = get_recent_records(client, f"me.comind.{collection}", limit=10)
+        print(records)
         
         record_cards = [render_record_card(record, f"me.comind.{collection}") for record in records]
         
@@ -176,7 +235,7 @@ def get_collection(collection: str):
 
 # Start the app when run directly
 if __name__ == "__main__":
-    serve()
+    serve(port=8972)
 
 
 
