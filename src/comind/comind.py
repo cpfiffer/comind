@@ -15,6 +15,7 @@ from typing import Optional
 from rich import print
 from rich.panel import Panel
 from src.comind.logging_config import configure_logger_without_timestamp, configure_root_logger_without_timestamp
+from .format import format, format_dict
 
 # Configure root logger without timestamps - this affects all logging in the application
 configure_root_logger_without_timestamp()
@@ -28,8 +29,8 @@ class Comind:
     common_prompt_dir: str
     logger: logging.Logger
     core_perspective: str = None
-
-    def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None, core_perspective: str = None):
+    sphere_name: str = None
+    def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None, core_perspective: str = None, sphere_name: str = None):
         self.name = name
 
         if prompt_path is None:
@@ -44,20 +45,23 @@ class Comind:
 
         if core_perspective is not None:
             self.core_perspective = core_perspective
+
+        if sphere_name is not None:
+            self.sphere_name = sphere_name
             
         # Initialize logger with basename of the .co file
         basename = os.path.basename(self.prompt_path).replace(".co", "")
         self.logger = configure_logger_without_timestamp(basename)
 
     @classmethod
-    def load(cls, name: str):
+    def load(cls, name: str, sphere_name: str = None):
         """Takes a name and attempts to return the specialized comind class"""
         if name == "conceptualizer":
-            return Conceptualizer()
+            return Conceptualizer(sphere_name=sphere_name)
         elif name == "feeler":
-            return Feeler()
+            return Feeler(sphere_name=sphere_name)
         elif name == "thinker":
-            return Thinker()
+            return Thinker(sphere_name=sphere_name)
         else:
             raise ValueError(f"Unknown comind: {name}")
 
@@ -75,7 +79,16 @@ class Comind:
         if self.core_perspective is not None and "core_perspective" not in common_prompts:
             common_prompts["core_perspective"] = self.core_perspective
 
+        if self.sphere_name is not None and "sphere_name" not in common_prompts:
+            common_prompts["sphere_name"] = self.sphere_name
+
         return common_prompts
+    
+    def get_required_context_keys(self):
+        """
+        Returns a list of keys that are required for the prompt.
+        """
+        return ["core_perspective", "sphere_name"]
     
     def to_prompt(self, context_dict: dict):
         """
@@ -110,22 +123,22 @@ class Comind:
             raise ValueError("Core perspective is required but was None")
         
         # Format the common prompts
-        for common_key, common_content in common_prompts.items():
-            context_dict[common_key] = common_content.format(**context_dict)
+        context_dict.update(format_dict(common_prompts, context_dict))
                 
         # Log the keys available in context_dict to help with debugging
-        self.logger.debug(f"Context keys: {list(context_dict.keys())}")
-        
+        self.logger.info(f"Context keys: {list(context_dict.keys())}")
+
         try:
             # Actually format the prompt with the values from context_dict
             formatted_prompt = raw_prompt.format(**context_dict)
             return formatted_prompt
         except KeyError as e:
-            self.logger.error(f"Missing key in context_dict for prompt formatting: {e}")
+            self.logger.error(f"Expected key in context_dict for prompt formatting: {e}")
             # Continue without raising, return the raw prompt
-            self.logger.warning("Returning unformatted prompt due to missing key")
-            return raw_prompt
-    
+            # self.logger.warning("Returning unformatted prompt due to missing key")
+            # return raw_prompt
+            raise e
+        
     def split_prompts(self, context_dict: dict = {}, format: bool = True):
         """
         Splits a co file into system, schema, and user messages.
@@ -181,8 +194,17 @@ class Comind:
         Returns:
             The generated result
         """
+
+        # Add the core_perspective to the context_dict
+        context_dict["core_perspective"] = self.core_perspective
+
+        # Add the sphere_name to the context_dict
+        context_dict["sphere_name"] = self.sphere_name
+
         prompts = self.split_prompts(context_dict)
         messages = self.messages(prompts)
+
+        self.logger.debug("messages", messages)
         
         # Debug log to see the actual prompts being sent
         if prompts["system"]:
@@ -206,6 +228,13 @@ class Comind:
 
         schema = self.schema()
 
+        # # Format the text to interpolation the context_dict
+        # # replaces {key} with value. 
+        # for message in messages:
+        #     print("message", message)
+        #     message["content"] = message["content"].format(**context_dict)
+        # print(messages)
+
         return sg.generate_by_schema(messages, schema)
 
 def available_cominds():
@@ -215,11 +244,13 @@ def available_cominds():
     return cominds
 
 class Conceptualizer(Comind):
-    def __init__(self):
+    def __init__(self, sphere_name: str = None, core_perspective: str = None, prompt_path: str = None, common_prompt_dir: str = None):
         super().__init__(
             name="conceptualizer",
             prompt_path="prompts/cominds/conceptualizer.co",
             common_prompt_dir="prompts/common/",
+            sphere_name=sphere_name,
+            core_perspective=core_perspective,
         )   
 
     def schema(self):
@@ -329,11 +360,13 @@ Connection to content: {connection_to_content}
                 self.logger.debug(f"Link creation result: {record_result}")
 
 class Feeler(Comind):
-    def __init__(self):
+    def __init__(self, sphere_name: str = None, core_perspective: str = None):
         super().__init__(
             name="feeler",
             prompt_path="prompts/cominds/feeler.co",
             common_prompt_dir="prompts/common/",
+            sphere_name=sphere_name,
+            core_perspective=core_perspective,
         )
 
     def schema(self):
@@ -433,10 +466,12 @@ Connection to content: {connection_to_content}
                 self.logger.debug(f"Link creation result: {record_result}")
 
 class Thinker(Comind):
-    def __init__(self):
+    def __init__(self, sphere_name: str = None, core_perspective: str = None):
         super().__init__(
             name="thinker",
             prompt_path="prompts/cominds/thinker.co",
+            sphere_name=sphere_name,
+            core_perspective=core_perspective,
         )
 
     def schema(self):
@@ -481,17 +516,17 @@ class Thinker(Comind):
             # Upload the concept to the Comind network
             log_base_str = f"{thought_type}"
             if thought_text:
-                log_base_str += f" - {thought_text}"
+                log_base_str += f" - text: {thought_text}"
             if thought_relationship:
-                log_base_str += f" - {thought_relationship}"
+                log_base_str += f" - relationship: {thought_relationship}"
             if thought_note:
-                log_base_str += f" - {thought_note}"
+                log_base_str += f" - note: {thought_note}"
             if context:
-                log_base_str += f" - {context}"
+                log_base_str += f" - context: {context}"
             if evidence:
-                log_base_str += f" - {evidence}"
+                log_base_str += f" - evidence: {evidence}"
             if alternatives:
-                log_base_str += f" - {alternatives}"
+                log_base_str += f" - alternatives: {alternatives}"
             self.logger.info(log_base_str)
 
             # Create printout string
@@ -569,10 +604,12 @@ if __name__ == "__main__":
     for comind in cominds:
         try:
             core_perspective = record_manager.get_perspective()
+            core_name = record_manager.get_sphere_name()
             if not core_perspective:
                 raise ValueError("Core perspective was retrieved but is empty")
                 
             # Print the first 100 characters of the core perspective for debugging
+            print(f"Core name: {core_name}")
             print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
         except Exception as e:
             comind.logger.error(f"Failed to get core perspective: {e}")
@@ -605,11 +642,11 @@ if __name__ == "__main__":
             context_dict = {
                 "content": prompt,
                 "core_perspective": core_perspective,
+                "sphere_name": core_name,
             }
             
             try:
                 result = comind.run(context_dict)
-                print(result)
 
                 if isinstance(comind, Feeler):
                     for emotion in result["emotions"]:
@@ -672,4 +709,7 @@ if __name__ == "__main__":
                 print(f"[red]Error processing post:[/red] {e}")
                 print(f"Post: {post}")
                 # Continue with next post rather than crashing
-                continue
+                # continue
+
+                # Raise the error
+                raise e

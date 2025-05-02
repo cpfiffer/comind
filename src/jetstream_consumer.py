@@ -267,7 +267,7 @@ async def process_event(
         root_post_uri: str = None,
         thread_depth: int = 15,
         user_info_cache: UserInfoCache = None,
-        comind: Comind = None
+        comind: Comind = None,
     ) -> None:
     """Process an event and generate thoughts, emotions, and concepts for it"""
     try:
@@ -646,7 +646,6 @@ async def main():
     spheres = record_manager.list_records("me.comind.sphere.core")
     sphere_to_use = None
 
-
     logger.debug(f"Found {len(spheres)} spheres")
     for sphere in spheres:
         value = sphere.value
@@ -679,7 +678,13 @@ async def main():
 
     # Create the comind
     comind = Comind.load(args.comind)
-    comind.core_perspective = sphere_to_use.value["text"]
+
+    if sphere_to_use is not None:
+        comind.sphere_name = sphere_to_use.value["title"]
+        comind.sphere_description = sphere_to_use.value["description"]
+        comind.core_perspective = sphere_to_use.value["text"]
+    else:
+        logger.warning("No sphere provided. Comind will not be attached to any sphere.")
 
     try:
         await connect_to_jetstream(
@@ -693,7 +698,7 @@ async def main():
         logger.info("Shutting down")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        raise e
+        # raise e
 
 
 if __name__ == "__main__":

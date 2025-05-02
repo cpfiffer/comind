@@ -99,6 +99,15 @@ class RecordManager:
         else:
             return None
 
+    def get_sphere_name(self):
+        """
+        Get the sphere name from the sphere record.
+        """
+        record = self.get_sphere_record()
+        if record:
+            return record.value['title']
+        else:
+            return None
 
     def try_get_record(self, collection: str, rkey: str) -> Optional[Dict]:
         """
@@ -192,7 +201,7 @@ class RecordManager:
                     self.sphere_record(response.uri, self.sphere_uri)
                 )
 
-            logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)
             return response
