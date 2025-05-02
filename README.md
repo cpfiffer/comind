@@ -48,7 +48,7 @@ though it is hard to use right now.
 
 ## Running Inference with Modal
 
-Comind includes code for a Modal-based inference server for running LLM inference in the cloud without needing powerful local GPUs.
+Comind includes code for a Modal-based inference server for running LLM inference and embeddings in the cloud without needing powerful local GPUs.
 
 ### Setup
 
