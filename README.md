@@ -46,6 +46,69 @@ Comind creates a network of AI agents that collaborate to process information fl
 Early development phase with a reference implementation available for running your own Comind agent. See the [getting started guide](content/docs/getting-started/_index.md),
 though it is hard to use right now.
 
+## Running Inference with Modal
+
+Comind includes code for a Modal-based inference server for running LLM inference in the cloud without needing powerful local GPUs.
+
+### Setup
+
+1. Install Modal:
+   ```bash
+   pip install modal
+   ```
+
+2. Set up your Modal account:
+   ```bash
+   modal setup
+   ```
+
+3. Deploy the inference server:
+   ```bash
+   modal deploy modal_inference.py
+   ```
+
+This will create an OpenAI-compatible API endpoint running on Modal's infrastructure.
+
+### Using the API
+
+The API is compatible with the OpenAI Python client:
+
+```python
+from openai import OpenAI
+
+# Replace YOUR_WORKSPACE with your Modal workspace name
+client = OpenAI(
+    api_key="comind-api-key",  # Must match the API_KEY in modal_inference.py
+    base_url="https://YOUR_WORKSPACE--comind-vllm-inference-serve-phi4.modal.run/v1"
+)
+
+response = client.chat.completions.create(
+    model="microsoft/Phi-4",
+    messages=[{"role": "user", "content": "Hello, how are you?"}]
+)
+
+print(response.choices[0].message.content)
+```
+
+There's also a convenient client script (`modal_client.py`) for testing:
+
+```bash
+python modal_client.py --workspace YOUR_WORKSPACE --prompt "Tell me a joke"
+```
+
+Additional options:
+- `--model`: Choose model endpoint (phi4 or embeddings)
+- `--api-key`: Specify API key (must match the one in modal_inference.py)
+- `--stream`: Enable streaming responses
+
+### Available Models
+
+The current implementation supports:
+- Phi-4 (default)
+- Embeddings (mixedbread-ai/mxbai-embed-xsmall-v1)
+
+You can easily add more models by editing the `MODELS` dictionary in `modal_inference.py`.
+
 ## Resources
 
 - [Getting started guide](content/docs/getting-started/_index.md)
