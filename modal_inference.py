@@ -65,7 +65,7 @@ MODELS = {
     "phi3-mini": {
         "name": "microsoft/Phi-3-mini-4k-instruct",
         "revision": None,
-        "gpu": "T4:1",     # Smaller model can run on cheaper T4 GPU
+        "gpu": "A10G:1",     # Smaller model can run on cheaper ?
     },
     "tiny-llama": {
         "name": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
