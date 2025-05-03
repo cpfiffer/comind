@@ -4,12 +4,14 @@
 import os
 import sys
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import datetime
+import re
 from atproto_client import Client as AtProtoClient
 from atproto_client import Session, SessionEvent
 from dotenv import load_dotenv
 from fasthtml.common import *
+import json
 
 from rich import print
 
@@ -19,6 +21,31 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("monitor")
+
+# Try to import comind formatter, or use local implementation
+try:
+    from comind.format import format as comind_format
+except ImportError:
+    # Fallback implementation if comind package is not available
+    def comind_format(template: str, context: Dict[str, Any], 
+                    safe: bool = True, default: str = "") -> str:
+        """
+        Simple implementation of comind.format for use without the full package.
+        """
+        if not template or not isinstance(template, str):
+            return str(template)
+            
+        result = template
+        for key, value in context.items():
+            placeholder = "{" + key + "}"
+            if placeholder in result:
+                result = result.replace(placeholder, str(value))
+        
+        # Handle any remaining placeholders with default value
+        if safe:
+            result = re.sub(r'\{[^{}]*\}', default, result)
+            
+        return result
 
 # Load environment variables
 load_dotenv(override=True)
@@ -110,7 +137,7 @@ def get_recent_records(client: AtProtoClient, collection: str, limit: int = 10) 
         return []
 
 def render_record_card(record, collection):
-    """Render a record as a card"""
+    """Render a record as a card with improved display and interactivity"""
     record_data = record.model_dump()['value']
     uri_parts = record.uri.split('/')
     rkey = uri_parts[-1]
@@ -118,43 +145,131 @@ def render_record_card(record, collection):
     # Extract record type-specific information
     title = ""
     body = ""
-
-    # Safely access dictionary values without using .get()
+    record_type = collection.split(".")[-1]  # Extract type from collection name
+    
+    # Build context for formatting
+    context = {
+        "record_type": record_type,
+        "collection": collection,
+        "rkey": rkey,
+        "uri": record.uri,
+    }
+    
+    # Add common fields to context
+    for key, value in record_data.items():
+        if isinstance(value, (str, int, float, bool)):
+            context[key] = value
+    
+    # Type-specific formatting context
     if collection == "me.comind.sphere.core":
-        title = record_data["title"] if "title" in record_data else "Untitled Sphere"
-        body = record_data["text"] if "text" in record_data else ""
-    elif collection == "me.comind.blip.thought":
-        generated = record_data["generated"] if "generated" in record_data else {}
-        title = f"Thought: {generated.get('thoughtType', 'Unknown')}" if isinstance(generated, dict) else "Thought: Unknown"
-        body = generated.get('text', '') if isinstance(generated, dict) else ''
-    elif collection == "me.comind.blip.emotion":
-        generated = record_data["generated"] if "generated" in record_data else {}
-        title = f"Emotion: {generated.get('emotionType', 'Unknown')}" if isinstance(generated, dict) else "Emotion: Unknown"
-        body = generated.get('text', '') if isinstance(generated, dict) else ''
-    elif collection == "me.comind.blip.concept":
-        generated = record_data["generated"] if "generated" in record_data else {}
-        title = generated.get('text', '')
-        body = generated.get('text', '') if isinstance(generated, dict) else ''
-    elif collection == "me.comind.meld.request":
-        generated = record_data["generated"] if "generated" in record_data else {}
-        title = f"Meld Request: {generated.get('requestType', 'Unknown')}" if isinstance(generated, dict) else "Meld Request: Unknown"
-        body = generated.get('prompt', '') if isinstance(generated, dict) else ''
-    elif collection == "me.comind.meld.response":
-        title = "Meld Response"
-        generated = record_data["generated"] if "generated" in record_data else {}
-        body = generated.get('content', '') if isinstance(generated, dict) else ''
+        title_template = "{title}"
+        body_template = "{text}"
+        context.update({
+            "title": record_data.get("title", "Untitled Sphere"),
+            "text": record_data.get("text", "")
+        })
+    elif "generated" in record_data and isinstance(record_data["generated"], dict):
+        generated = record_data["generated"]
+        context.update(generated)
+        
+        # Add generated fields to context
+        for key, value in generated.items():
+            if isinstance(value, (str, int, float, bool)):
+                context[f"generated_{key}"] = value
+        
+        if collection == "me.comind.blip.thought":
+            title_template = "Thought: {thoughtType}"
+            body_template = "{text}"
+            context.update({
+                "thoughtType": generated.get("thoughtType", "Unknown"),
+                "text": generated.get("text", "")
+            })
+        elif collection == "me.comind.blip.emotion":
+            title_template = "Emotion: {emotionType}"
+            body_template = "{text}"
+            context.update({
+                "emotionType": generated.get("emotionType", "Unknown"),
+                "text": generated.get("text", "")
+            })
+        elif collection == "me.comind.blip.concept":
+            title_template = "{text}"
+            body_template = "{text}"
+            context.update({
+                "text": generated.get("text", "")
+            })
+        elif collection == "me.comind.meld.request":
+            title_template = "Meld Request: {requestType}"
+            body_template = "{prompt}"
+            context.update({
+                "requestType": generated.get("requestType", "Unknown"),
+                "prompt": generated.get("prompt", "")
+            })
+        elif collection == "me.comind.meld.response":
+            title_template = "Meld Response"
+            body_template = "{content}"
+            context.update({
+                "content": generated.get("content", "")
+            })
+    else:
+        title_template = "Record: {record_type}"
+        body_template = ""
+    
+    # Format title and body using comind_format
+    title = comind_format(title_template, context, safe=True, default="Unknown")
+    body = comind_format(body_template, context, safe=True, default="")
     
     # Format created date if available
-    created_at = record_data["createdAt"] if "createdAt" in record_data else ""
+    created_at = record_data.get("createdAt", "")
     created_formatted = format_datetime(created_at) if created_at else ""
     
+    # Generate a unique ID for this content
+    content_id = f"content-{record_type}-{rkey}"
+    
+    # Truncate long content with expand/collapse functionality
+    content_div = Div(
+        P(body, id=content_id, cls="truncated" if len(body) > 300 else ""),
+        Button(
+            "Show more", 
+            cls="expand-button",
+            onclick=f"""
+                const content = document.getElementById('{content_id}');
+                const btn = this;
+                if (content.classList.contains('truncated')) {{
+                    content.classList.remove('truncated');
+                    btn.textContent = 'Show less';
+                }} else {{
+                    content.classList.add('truncated');
+                    btn.textContent = 'Show more';
+                }}
+            """,
+            style="display: " + ("block" if len(body) > 300 else "none")
+        )
+    ) if body else Div()
+    
+    # Define icon based on record type
+    icon_map = {
+        "sphere": "🌐",
+        "thought": "💭",
+        "emotion": "😊",
+        "concept": "💡",
+        "request": "❓",
+        "response": "💬"
+    }
+    icon = icon_map.get(record_type.split(".")[-1], "📄")
+    
     return Div(
-        H3(title),
-        P(body) if body else Div(),
-        Small(f"Created: {created_formatted}"),
-        Small(f"ID: {rkey}"),
+        H3(f"{icon} {title}"),
+        content_div,
+        Div(
+            Span(f"Created: {created_formatted}"),
+            Span(f"ID: {rkey}"),
+            cls="card-meta"
+        ),
         cls="card",
-        style="margin-bottom: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 5px;"
+        hx_get=f"/record/{record_type}/{rkey}",
+        hx_target="this",
+        hx_swap="outerHTML",
+        hx_trigger="dblclick"
     )
 
 @rt("/")
@@ -177,7 +292,7 @@ def get():
             record_cards = [render_record_card(record, collection) for record in records]
             
             collection_section = Div(
-                H2(f"{collection_name} Records"),
+                H2(f"{collection_name} Records", cls="collection-title"),
                 *record_cards,
                 cls="collection-section",
                 style="margin-bottom: 2rem;"
@@ -187,14 +302,185 @@ def get():
         
         # If no records found
         if not collection_sections:
-            collection_sections = [P("No records found. Please check your credentials and collection names.")]
+            collection_sections = [P("No records found. Please check your credentials and collection names.", cls="no-records")]
         
-        # Refresh button
-        refresh_button = Button("Refresh", hx_get="/", hx_swap="outerHTML", hx_target="#content")
+        # Refresh button with improved styling and auto-refresh option
+        refresh_controls = Div(
+            Button(
+                Span("↻ Refresh", cls="refresh-text"), 
+                cls="refresh-button", 
+                hx_get="/", 
+                hx_swap="outerHTML", 
+                hx_target="#content"
+            ),
+            Div(
+                Input(type="checkbox", id="auto-refresh", name="auto-refresh"),
+                Label("Auto-refresh (30s)", for_="auto-refresh"),
+                style="margin-left: 1rem; display: inline-flex; align-items: center;"
+            ),
+            Script("""
+                document.getElementById('auto-refresh').addEventListener('change', function() {
+                    if (this.checked) {
+                        window.autoRefreshInterval = setInterval(function() {
+                            document.querySelector('.refresh-button').click();
+                        }, 30000);
+                    } else {
+                        clearInterval(window.autoRefreshInterval);
+                    }
+                });
+            """),
+            style="display: flex; align-items: center;"
+        )
             
         return Title("Comind Record Monitor"), Div(
-            H1("Comind Record Monitor"),
-            refresh_button,
+            Style("""
+                :root {
+                    --primary-color: #4a6baf;
+                    --bg-color: #f5f7fa;
+                    --card-bg: #ffffff;
+                    --text-color: #333;
+                    --border-color: #e0e0e0;
+                    --highlight: #617ec2;
+                    --muted-text: #666;
+                }
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background-color: var(--bg-color);
+                    color: var(--text-color);
+                    line-height: 1.6;
+                    padding: 0;
+                    margin: 0;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 2rem;
+                }
+                .header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 2rem;
+                    border-bottom: 1px solid var(--border-color);
+                    padding-bottom: 1rem;
+                }
+                h1 {
+                    color: var(--primary-color);
+                    margin: 0;
+                }
+                .collection-title {
+                    color: var(--primary-color);
+                    border-bottom: 2px solid var(--border-color);
+                    padding-bottom: 0.5rem;
+                    margin-top: 2rem;
+                }
+                .card {
+                    background: var(--card-bg);
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    margin-bottom: 1.5rem;
+                    padding: 1.5rem;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    border-left: 4px solid var(--primary-color);
+                }
+                .card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+                .card h3 {
+                    color: var(--primary-color);
+                    margin-top: 0;
+                }
+                .card-meta {
+                    color: var(--muted-text);
+                    font-size: 0.85rem;
+                    margin-top: 1rem;
+                    display: flex;
+                    justify-content: space-between;
+                }
+                .refresh-button {
+                    background-color: var(--primary-color);
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    transition: background-color 0.2s;
+                }
+                .refresh-button:hover {
+                    background-color: var(--highlight);
+                }
+                .nav-tabs {
+                    display: flex;
+                    gap: 0.5rem;
+                    margin-bottom: 2rem;
+                    flex-wrap: wrap;
+                }
+                .nav-tab {
+                    padding: 0.5rem 1rem;
+                    background-color: #e0e0e0;
+                    border-radius: 4px;
+                    text-decoration: none;
+                    color: var(--text-color);
+                    font-weight: 500;
+                    transition: background-color 0.2s;
+                }
+                .nav-tab:hover, .nav-tab.active {
+                    background-color: var(--primary-color);
+                    color: white;
+                }
+                .expand-button {
+                    background: none;
+                    border: none;
+                    color: var(--primary-color);
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                    padding: 0;
+                    margin-top: 0.5rem;
+                    text-decoration: underline;
+                }
+                .truncated {
+                    max-height: 100px;
+                    overflow: hidden;
+                    position: relative;
+                }
+                .truncated::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 30px;
+                    background: linear-gradient(transparent, var(--card-bg));
+                }
+                @media (max-width: 768px) {
+                    .container {
+                        padding: 1rem;
+                    }
+                    .header {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 1rem;
+                    }
+                    .nav-tabs {
+                        width: 100%;
+                        overflow-x: auto;
+                    }
+                }
+            """),
+            Div(
+                H1("Comind Record Monitor"),
+                refresh_controls,
+                cls="header"
+            ),
+            Div(
+                *[A(collection.split(".")[-1].capitalize(), 
+                    href=f"/{collection.split('.')[-1]}", 
+                    cls="nav-tab") 
+                  for collection in COLLECTIONS],
+                cls="nav-tabs"
+            ),
             Div(*collection_sections, id="content"),
             cls="container"
         )
@@ -231,6 +517,119 @@ def get_collection(collection: str):
             P(f"An error occurred: {str(e)}"),
             A("Back to All Records", href="/", cls="button"),
             cls="container"
+        )
+
+@rt("/record/{collection_type}/{rkey}")
+def get_record_detail(collection_type: str, rkey: str):
+    """Display detailed information about a record"""
+    try:
+        client = default_login()
+        collection = f"me.comind.{collection_type}"
+        
+        # Get the specific record
+        response = client.com.atproto.repo.get_record({
+            'collection': collection,
+            'repo': client.me.did,
+            'rkey': rkey
+        })
+        
+        if not response or not hasattr(response, 'value'):
+            return Div(
+                H3("Record Not Found"),
+                P(f"Could not find record with ID {rkey}"),
+                Button("Close", onclick="this.parentElement.outerHTML = originalCardHTML;"),
+                cls="card error-card"
+            )
+            
+        record_data = response.value
+        
+        # Build context for formatting
+        context = {
+            "record_type": collection_type,
+            "collection": collection,
+            "rkey": rkey,
+        }
+        
+        # Add common fields to context
+        for key, value in record_data.items():
+            if isinstance(value, (str, int, float, bool)):
+                context[key] = value
+        
+        # Type-specific formatting
+        title_template = "Record Details"
+        body_template = ""
+        
+        if collection == "me.comind.sphere.core":
+            title_template = "{title}"
+            body_template = "{text}"
+            context.update({
+                "title": record_data.get("title", "Untitled Sphere"),
+                "text": record_data.get("text", "")
+            })
+        elif "generated" in record_data and isinstance(record_data["generated"], dict):
+            generated = record_data["generated"]
+            
+            # Add generated fields to context
+            for key, value in generated.items():
+                if isinstance(value, (str, int, float, bool)):
+                    context[f"generated_{key}"] = value
+                    context[key] = value
+            
+            if collection == "me.comind.blip.thought":
+                title_template = "Thought: {thoughtType}"
+                body_template = "{text}"
+            elif collection == "me.comind.blip.emotion":
+                title_template = "Emotion: {emotionType}"
+                body_template = "{text}"
+            elif collection == "me.comind.blip.concept":
+                title_template = "{text}"
+                body_template = "{text}"
+            elif collection == "me.comind.meld.request":
+                title_template = "Meld Request: {requestType}"
+                body_template = "{prompt}"
+            elif collection == "me.comind.meld.response":
+                title_template = "Meld Response"
+                body_template = "{content}"
+        
+        # Format title and body using comind_format
+        title = comind_format(title_template, context, safe=True, default="Unknown")
+        body = comind_format(body_template, context, safe=True, default="")
+        
+        # Format created date if available
+        created_at = record_data.get("createdAt", "")
+        created_formatted = format_datetime(created_at) if created_at else ""
+        
+        # Store the full record JSON
+        record_json = json.dumps(record_data, indent=2)
+        
+        return Div(
+            Script(f"const originalCardHTML = this.outerHTML;"),
+            H3(f"📄 {title}"),
+            P(body) if body else Div(),
+            H4("Record Details:"),
+            Pre(record_json, style="background: #f0f0f0; padding: 1rem; border-radius: 4px; overflow: auto; max-height: 300px;"),
+            Div(
+                Span(f"Created: {created_formatted}"),
+                Span(f"ID: {rkey}"),
+                cls="card-meta"
+            ),
+            Button("Close", 
+                   cls="refresh-button", 
+                   style="margin-top: 1rem;",
+                   onclick="this.closest('.card').outerHTML = originalCardHTML;"),
+            cls="card detail-card",
+            style="max-width: 100%; overflow: hidden;"
+        )
+        
+    except Exception as e:
+        return Div(
+            H3("Error"),
+            P(f"An error occurred: {str(e)}"),
+            Button("Close", 
+                   cls="refresh-button", 
+                   style="margin-top: 1rem;",
+                   onclick="this.closest('.card').outerHTML = originalCardHTML;"),
+            cls="card error-card"
         )
 
 # Start the app when run directly

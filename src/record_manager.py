@@ -201,7 +201,8 @@ class RecordManager:
                     self.sphere_record(response.uri, self.sphere_uri)
                 )
 
-            logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            # logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)
             return response

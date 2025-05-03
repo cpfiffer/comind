@@ -11,6 +11,7 @@ import argparse
 import src.session_reuse as session_reuse
 from rich import print
 from rich.panel import Panel
+from rich.logging import RichHandler
 from src.bsky_utils import (
     STRIP_FIELDS,
     unpack_thread,
@@ -36,6 +37,9 @@ from src.comind.logging_config import configure_root_logger_without_timestamp
 # Configure logging without timestamps
 configure_root_logger_without_timestamp()
 logger = logging.getLogger("jetstream_consumer")
+
+# Add Rich handler for colorful logging
+logging.getLogger().handlers = [RichHandler(rich_tracebacks=True)]
 
 # Silence httpx logs (only show warnings and errors)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -252,7 +256,7 @@ def update_activated_dids(client: Client, file_path: str, user_info_cache: UserI
     global activated_dids
     try:
         activated_dids = load_activated_dids_from_file(client, file_path, user_info_cache)
-        logger.info(f"Updated activated DIDs: {len(activated_dids)} DIDs")
+        logger.info(f"Observing {len(activated_dids)} repositories")
     except Exception as e:
         logger.error(f"Failed to update activated DIDs: {e}")
         # Keep existing list if update fails
@@ -288,8 +292,10 @@ async def process_event(
 
         # Get the thread containing the post. If a root post URI is provided, use that
         # to get the thread, otherwise use the post URI.
-        thread_uri = root_post_uri if root_post_uri else post_uri
-        logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
+        # thread_uri = root_post_uri if root_post_uri else post_uri
+        # logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
+
+        thread_uri = post_uri # note, removing this post for now in order to not seek the root post
 
         # Use depth=0 to fetch the complete thread with all replies
         # This ensures we get all branches of the conversation
@@ -297,7 +303,7 @@ async def process_event(
         for i in range(10):
             # Loop because the post may not yet be available
             try:
-                thread = client.get_post_thread(thread_uri, depth=thread_depth)
+                thread = client.get_post_thread(thread_uri, depth=thread_depth, parent_height=32) # magic number
                 break
             except Exception as thread_error:
                 logger.error(f"Error getting thread with depth={thread_depth}: {thread_error}")
@@ -434,7 +440,7 @@ async def connect_to_jetstream(
         # Construct full URI with parameters
         ws_uri = f"{ws_uri}?{'&'.join(query_params)}"
 
-        logger.info(f"Connecting to jetstream with {len(activated_dids)} activated DIDs")
+        logger.debug(f"Connecting to jetstream with {len(activated_dids)} activated DIDs")
         logger.debug(f"WebSocket URI: {ws_uri}")
 
         try:
