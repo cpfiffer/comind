@@ -14,6 +14,7 @@ from src.record_manager import RecordManager
 from typing import Optional
 from rich import print
 from rich.panel import Panel
+from rich.text import Text
 from src.comind.logging_config import configure_logger_without_timestamp, configure_root_logger_without_timestamp
 from .format import format, format_dict
 
@@ -294,15 +295,22 @@ class Conceptualizer(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{concept_text}"
+            # Log the concept in a structured, readable format
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Concept:[/bold cyan] {concept_text}")
+            
             if concept_relationship:
-                log_base_str += f" - {concept_relationship}"
+                log_lines.append(f"[bold green]Relationship:[/bold green] {concept_relationship}")
+            
             if concept_note:
-                log_base_str += f" - {concept_note}"
+                log_lines.append(f"[bold yellow]Note:[/bold yellow] {concept_note}")
+            
             if concept_strength:
-                log_base_str += f" - {concept_strength}"
-            self.logger.info(log_base_str)
+                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {concept_strength}")
+                
+            log_message = "\n".join(log_lines)
+            self.logger.info(f"\n{log_message}")
 
             # Create printout string
             printout = f"""
@@ -405,17 +413,25 @@ class Feeler(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{emotion_type}"
+            # Log the emotion in a structured, readable format
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Emotion Type:[/bold cyan] {emotion_type}")
+            
             if emotion_text:
-                log_base_str += f" - {emotion_text}"
+                log_lines.append(f"[bold blue]Description:[/bold blue] {emotion_text}")
+                
             if emotion_relationship:
-                log_base_str += f" - {emotion_relationship}"
+                log_lines.append(f"[bold green]Relationship:[/bold green] {emotion_relationship}")
+            
             if emotion_note:
-                log_base_str += f" - {emotion_note}"
+                log_lines.append(f"[bold yellow]Note:[/bold yellow] {emotion_note}")
+            
             if emotion_strength:
-                log_base_str += f" - {emotion_strength}"
-            self.logger.info(log_base_str)
+                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {emotion_strength}")
+                
+            log_message = "\n".join(log_lines)
+            self.logger.info(f"\n{log_message}")
 
             # Create printout string
             printout = f"""
@@ -513,21 +529,39 @@ class Thinker(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{thought_type}"
+            # Log the thought in a structured, readable format
+            from rich.panel import Panel
+            from rich.text import Text
+
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Thought Type:[/bold cyan] {thought_type}")
+            
             if thought_text:
-                log_base_str += f" - text: {thought_text}"
-            if thought_relationship:
-                log_base_str += f" - relationship: {thought_relationship}"
-            if thought_note:
-                log_base_str += f" - note: {thought_note}"
+                log_lines.append(f"[bold blue]Content:[/bold blue] {thought_text}")
+                
             if context:
-                log_base_str += f" - context: {context}"
+                log_lines.append(f"[bold purple]Context:[/bold purple] {context}")
+                
+            if thought_relationship:
+                log_lines.append(f"[bold green]Relationship:[/bold green] {thought_relationship}")
+            
+            if thought_note:
+                log_lines.append(f"[bold yellow]Note:[/bold yellow] {thought_note}")
+            
+            if thought_strength:
+                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {thought_strength}")
+                
             if evidence:
-                log_base_str += f" - evidence: {evidence}"
+                evidence_str = ", ".join(evidence) if isinstance(evidence, list) else str(evidence)
+                log_lines.append(f"[bold red]Evidence:[/bold red] {evidence_str}")
+                
             if alternatives:
-                log_base_str += f" - alternatives: {alternatives}"
-            self.logger.info(log_base_str)
+                alt_str = ", ".join(alternatives) if isinstance(alternatives, list) else str(alternatives)
+                log_lines.append(f"[bold orange]Alternatives:[/bold orange] {alt_str}")
+                
+            log_message = "\n".join(log_lines)
+            self.logger.info(f"\n{log_message}")
 
             # Create printout string
             printout = f"""
