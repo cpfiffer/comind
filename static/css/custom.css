@@ -1,5 +1,12 @@
 /* f6e7caff */
 
 body {
-    /* font- */
+    background-color: #24242400 !important;
+    color: #f7f3e9 !important;
 }
+
+.navbar {
+    background-color: #24242400 !important;
+}
+
+

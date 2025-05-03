@@ -46,11 +46,9 @@ params:
     displayLogo: true
 
     logo:
-      path: /logo-dark.svg
-      dark: /logo-dark.svg
+      path: /co-dark-2.svg
       link: /
-      width: 200
-      height: 20
+      width: 80
 
   footer:
     displayCopyright: false
