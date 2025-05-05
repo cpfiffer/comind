@@ -2,6 +2,7 @@
 title: "Getting started"
 date: 2025-03-30T11:22:52-07:00
 draft: false
+weight: 1
 ---
 
 ## Introduction to Comind
