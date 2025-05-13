@@ -661,47 +661,40 @@ if __name__ == "__main__":
 
     cominds = [comind1, comind2, comind3]
 
-    for comind in cominds:
-        try:
+    # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
+    timeline = client.get_timeline(algorithm='reverse-chronological')
 
-            # Print the first 100 characters of the core perspective for debugging
-            print(f"Core name: {core_name}")
-            print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
-        except Exception as e:
-            comind.logger.error(f"Failed to get core perspective: {e}")
-            print(f"[red]Error:[/red] Failed to get core perspective: {e}")
-            print("Using placeholder core perspective for testing.")
-            core_perspective = "This is a placeholder core perspective for testing."
+    for feed_view in timeline.feed: # Outer loop: posts
+        action = 'New Post'
+        if feed_view.reason:
+            action_by = feed_view.reason.by.handle
+            action = f'Reposted by @{action_by}'
 
-        # Print the common prompts that are being loaded
-        common_prompts = comind.load_common_prompts()
-        print(f"Common prompts loaded: {list(common_prompts.keys())}")
+        post = feed_view.post
+        post_uri = post.uri
+        post_cid = post.cid
+        author = post.author
+        post_content_prompt = f'[{action}] {author.display_name}: {post.record.text}'
 
-        # Types dict
-        blip_types = {}
-
-        # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
-        timeline = client.get_timeline(algorithm='reverse-chronological')
-        for feed_view in timeline.feed:
-            action = 'New Post'
-            if feed_view.reason:
-                action_by = feed_view.reason.by.handle
-                action = f'Reposted by @{action_by}'
-
-            post = feed_view.post
-            post_uri = post.uri
-            post_cid = post.cid
-            author = post.author
-
-            prompt = f'[{action}] {author.display_name}: {post.record.text}'
-
-            context_dict = {
-                "content": prompt,
-                "core_perspective": core_perspective,
-                "sphere_name": core_name,
-            }
-
+        for comind in cominds: # Inner loop: cominds
             try:
+                # Print the first 100 characters of the core perspective for debugging
+                # These will now print per-post, per-comind
+                print(f"Core name: {core_name}")
+                print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
+
+                # Print the common prompts that are being loaded
+                common_prompts = comind.load_common_prompts()
+                print(f"Common prompts loaded: {list(common_prompts.keys())}")
+
+                # Types dict - will be reset per-post, per-comind
+                blip_types = {}
+
+                context_dict = {
+                    "content": post_content_prompt,
+                    # comind.run() will use its own self.core_perspective and self.sphere_name
+                }
+
                 result = comind.run(context_dict)
 
                 if isinstance(comind, Feeler):
@@ -735,17 +728,18 @@ if __name__ == "__main__":
                 # Print out the count of different concept types.
                 # print(blip_types)
 
-                # generated text
-                for thing in result["concepts"]:
-                    generated_strings.append(thing["text"])
+                # generated text (global accumulation)
+                if isinstance(comind, Conceptualizer) and "concepts" in result: # Ensure result has concepts
+                    for thing in result["concepts"]:
+                        generated_strings.append(thing["text"])
 
-
-                user_prompt = "Here is a list of concepts occuring currently, with the most\n" + \
+                # Zeitgeist generation using globally accumulated generated_strings
+                user_prompt_for_zeitgeist = "Here is a list of concepts occuring currently, with the most\n" + \
                     "recent at the bottom. Give me the zeitgeist.\n" + \
                     "\n".join(generated_strings)
 
                 model_statement = sg.generate_by_schema(
-                    sg.messages(user_prompt),
+                    sg.messages(user_prompt_for_zeitgeist),
                     """
                     {
                         "type": "object",
@@ -756,18 +750,15 @@ if __name__ == "__main__":
                     }
                     """
                 )
-
                 new_txt = json.loads(model_statement.choices[0].message.content)
-
                 print(Panel(new_txt['zeitgeist']))
 
-                time.sleep(60)
-            except Exception as e:
-                comind.logger.error(f"Error processing post: {e}")
-                print(f"[red]Error processing post:[/red] {e}")
-                print(f"Post: {post}")
-                # Continue with next post rather than crashing
-                # continue
+                time.sleep(60) # Sleep after each comind processes a post
 
-                # Raise the error
-                raise e
+            except Exception as e:
+                comind.logger.error(f"Error processing post {post_uri} with comind {comind.name}: {e}")
+                print(f"[red]Error processing post {post_uri} with comind {comind.name}:[/red] {e}")
+                if post: # Ensure post object is available
+                    print(f"Post content: {post_content_prompt}")
+                # Continue to the next comind for the current post, or next post if this was the last comind.
+                pass
