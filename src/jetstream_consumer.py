@@ -90,14 +90,14 @@ class UserInfoCache(BaseModel):
 
 # System prompts for language model generation
 system_prompts = {
-    "me.comind.blip.concept": """
+    "me.comind.concept": """
     You are a comind, an AI agent that produces structured JSON output containing concepts about various content
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of concepts.
 
     Concepts should be single words or phrases, like 'data', 'privacy', 'AI', 'security', 'social networks', etc.
     Keep concept text as short as possible. You may use lowercase letters, spaces, and numbers.
     """,
-    "me.comind.blip.emotion": """
+    "me.comind.emotion": """
     You are a comind, an AI agent that produces structured JSON output containing emotions about various content
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of emotions.
 
@@ -154,7 +154,7 @@ system_prompts = {
     - persistence
     - drive
     """,
-    "me.comind.blip.thought": """
+    "me.comind.thought": """
     You are a comind, an AI agent that produces structured JSON output containing thoughts about various content
     on AT Proto, a decentralized social network. You respond in JSON and produce a list of thoughts.
 
@@ -329,8 +329,8 @@ async def process_event(
 
             # Resolve the handle to a DID
             actor_did = resolve_handle_to_did(
-                client, 
-                author_did, 
+                client,
+                author_did,
                 user_info_cache
             )
 
@@ -338,7 +338,7 @@ async def process_event(
             if actor_info is None:
                 logger.error(f"Failed to resolve handle to DID for post {post_uri}")
                 return
-            
+
         # Info premble
         user_info_preamble = f"## User information\nDisplay name: {actor_info.display_name}\nHandle: {actor_info.handle}\nDescription: {actor_info.description}"
         context_preamble = f"## Context\n{thread_string}"
@@ -357,7 +357,7 @@ async def process_event(
 
         # Strip the target post
         stripped_target_post = yaml.dump(
-            strip_fields(target_post.model_dump(), STRIP_FIELDS), 
+            strip_fields(target_post.model_dump(), STRIP_FIELDS),
             indent=2
         )
 
@@ -390,7 +390,7 @@ async def process_event(
 
         # Upload the result
         comind.upload(
-            result, 
+            result,
             RecordManager(client),
             target=post_uri
         )
@@ -400,10 +400,10 @@ async def process_event(
         raise e
 
 async def connect_to_jetstream(
-        atproto_client: Client, 
+        atproto_client: Client,
         activated_dids_file: str,
-        jetstream_host: str = JETSTREAM_HOST, 
-        thread_depth: int = 15, 
+        jetstream_host: str = JETSTREAM_HOST,
+        thread_depth: int = 15,
         comind: Comind = None
     ) -> None:
     """Connect to Jetstream and process incoming messages"""
@@ -472,7 +472,7 @@ async def connect_to_jetstream(
 
                     # Set timeout for websocket receive to allow periodic DID checks
                     try:
-                        # Receive message from Jetstream with timeout 
+                        # Receive message from Jetstream with timeout
                         # Use a shorter timeout than the ping_interval to ensure we can send pings
                         message = await asyncio.wait_for(websocket.recv(), timeout=15)
                         event = json.loads(message)
@@ -574,7 +574,7 @@ async def connect_to_jetstream(
             logger.error(f"WebSocket connection closed: {e}")
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
             await asyncio.sleep(RECONNECT_DELAY)
-            
+
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
@@ -604,7 +604,7 @@ async def main():
                         help="Sphere to attach comind records to. Default is to not use a sphere.")
     parser.add_argument("--comind", "-c", type=str, default=None,
                         help="Comind to use for processing. Required.")
-    
+
     args = parser.parse_args()
 
     if args.comind is None:

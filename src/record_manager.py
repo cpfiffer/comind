@@ -49,13 +49,13 @@ class RecordManager:
             self.sphere_collection = splat[-2]
             print(self.sphere_rkey)
             print(self.sphere_collection)
-        
+
         logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
 
     def sphere_record(self, target: str, sphere_uri: str = None):
         if sphere_uri is None:
             sphere_uri = self.sphere_uri
-            
+
 
         if sphere_uri is None:
             return None
@@ -69,30 +69,30 @@ class RecordManager:
                     'sphere_uri': sphere_uri
                 }
             }
-        
+
     def get_sphere_record(self):
         """
         Get the sphere record.
         """
         return self.try_get_record(
-            self.sphere_collection, 
+            self.sphere_collection,
             self.sphere_rkey
         )
 
     def get_perspective(self):
         """
         Get the perspective text from the sphere record.
-        
+
         Returns:
             The perspective text from the sphere record.
-            
+
         Raises:
             ValueError: If the sphere URI is not set or the perspective record cannot be found.
         """
         if not self.sphere_uri:
             logger.error("No sphere URI set. Cannot get perspective.")
             raise ValueError("No sphere URI set. Cannot get perspective.")
-            
+
         record = self.get_sphere_record()
         if record:
             return record.value['text']
@@ -125,7 +125,7 @@ class RecordManager:
         Get a record from the user's repository.
 
         Args:
-            collection: The collection to get the record from (e.g., me.comind.blips.thought)
+            collection: The collection to get the record from (e.g., me.cominds.thought)
             rkey: The record key identifier
 
         Returns:
@@ -156,7 +156,7 @@ class RecordManager:
         Create a record in the user's repository.
 
         Args:
-            collection: The collection to create the record in (e.g., me.comind.blips.thought)
+            collection: The collection to create the record in (e.g., me.cominds.thought)
             record: The record data to create
             rkey: Optional custom record key. If not provided, the server will generate one
 
@@ -185,7 +185,7 @@ class RecordManager:
             # Set rkey to lowercase title with hyphens instead of spaces
             create_params['rkey'] = create_params['record']['title'].lower().replace(" ", "-")
 
-        if collection == "me.comind.blip.concept":
+        if collection == "me.comind.concept":
             # Set rkey to lowercase title with hyphens instead of spaces
             create_params['rkey'] = create_params['record']['generated']['text'].lower().replace(" ", "-")
 
@@ -194,7 +194,7 @@ class RecordManager:
 
         try:
             response = self.client.com.atproto.repo.create_record(create_params)
-        
+
             if self.sphere_uri is not None:
                 logger.debug(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
                 self.client.com.atproto.repo.create_record(
@@ -221,7 +221,7 @@ class RecordManager:
         List all records in a collection.
 
         Args:
-            collection: The collection to list records from (e.g., me.comind.blips.thought)
+            collection: The collection to list records from (e.g., me.cominds.thought)
 
         Returns:
             A list of record dictionaries
@@ -246,7 +246,7 @@ class RecordManager:
         Delete a record from the user's repository.
 
         Args:
-            collection: The collection containing the record (e.g., me.comind.blips.thought)
+            collection: The collection containing the record (e.g., me.cominds.thought)
             rkey: The record key identifier
 
         Raises:
@@ -276,7 +276,7 @@ class RecordManager:
         Delete all records in a collection.
 
         Args:
-            collection: The collection to clear (e.g., me.comind.blips.thought)
+            collection: The collection to clear (e.g., me.cominds.thought)
 
         Raises:
             ValueError: If attempting to clear a collection outside the allowed namespace

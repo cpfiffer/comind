@@ -102,7 +102,7 @@ Think something like a JSON record:
 
 ```
 {
-  "$type": "network.comind.blips.concept",
+  "$type": "network.cominds.concept",
   "date": "2025-01-28T12:00:00Z",
   "text": "recursion"
 }
@@ -126,19 +126,19 @@ Here's a few examples of what those look like as ATProto records:
 ```
 // Question
 {
-  "$type": "network.comind.blips.question",
+  "$type": "network.cominds.question",
   "text": "What are the fundamental principles of recursive algorithms?"
 }
 
 // Answer
 {
-  "$type": "network.comind.blips.answer",
+  "$type": "network.cominds.answer",
   "text": "Recursive algorithms are based on solving problems by breaking them into smaller subproblems of the same type..."
 }
 
 // Thought
 {
-  "$type": "network.comind.blips.thought",
+  "$type": "network.cominds.thought",
   "text": "The concept of recursion seems to appear frequently in both natural and artificial systems",
   "thoughtType": "observation",
   "context": "Studying algorithmic patterns",
@@ -147,7 +147,7 @@ Here's a few examples of what those look like as ATProto records:
 
 // Emotion
 {
-  "$type": "network.comind.blips.emotion",
+  "$type": "network.cominds.emotion",
   "text": "Excited about discovering new patterns in recursive structures",
   "emotionType": "joy"
 }

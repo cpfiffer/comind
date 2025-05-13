@@ -27,24 +27,24 @@ try:
     from comind.format import format as comind_format
 except ImportError:
     # Fallback implementation if comind package is not available
-    def comind_format(template: str, context: Dict[str, Any], 
+    def comind_format(template: str, context: Dict[str, Any],
                     safe: bool = True, default: str = "") -> str:
         """
         Simple implementation of comind.format for use without the full package.
         """
         if not template or not isinstance(template, str):
             return str(template)
-            
+
         result = template
         for key, value in context.items():
             placeholder = "{" + key + "}"
             if placeholder in result:
                 result = result.replace(placeholder, str(value))
-        
+
         # Handle any remaining placeholders with default value
         if safe:
             result = re.sub(r'\{[^{}]*\}', default, result)
-            
+
         return result
 
 # Load environment variables
@@ -53,9 +53,9 @@ load_dotenv(override=True)
 # Define collections to monitor
 COLLECTIONS = [
     "me.comind.sphere.core",
-    "me.comind.blip.thought",
-    "me.comind.blip.emotion",
-    "me.comind.blip.concept",
+    "me.comind.thought",
+    "me.comind.emotion",
+    "me.comind.concept",
     "me.comind.meld.request",
     "me.comind.meld.response"
 ]
@@ -88,7 +88,7 @@ def init_client(username: str, password: str) -> AtProtoClient:
     if pds_uri is None:
         logger.warning("No PDS URI provided. Falling back to bsky.social.")
         pds_uri = "https://bsky.social"
-        
+
     logger.info(f"Using PDS URI: {pds_uri}")
 
     client = AtProtoClient(pds_uri)
@@ -146,7 +146,7 @@ def render_record_card(record, collection):
     title = ""
     body = ""
     record_type = collection.split(".")[-1]  # Extract type from collection name
-    
+
     # Build context for formatting
     context = {
         "record_type": record_type,
@@ -154,12 +154,12 @@ def render_record_card(record, collection):
         "rkey": rkey,
         "uri": record.uri,
     }
-    
+
     # Add common fields to context
     for key, value in record_data.items():
         if isinstance(value, (str, int, float, bool)):
             context[key] = value
-    
+
     # Type-specific formatting context
     if collection == "me.comind.sphere.core":
         title_template = "{title}"
@@ -171,27 +171,27 @@ def render_record_card(record, collection):
     elif "generated" in record_data and isinstance(record_data["generated"], dict):
         generated = record_data["generated"]
         context.update(generated)
-        
+
         # Add generated fields to context
         for key, value in generated.items():
             if isinstance(value, (str, int, float, bool)):
                 context[f"generated_{key}"] = value
-        
-        if collection == "me.comind.blip.thought":
+
+        if collection == "me.comind.thought":
             title_template = "Thought: {thoughtType}"
             body_template = "{text}"
             context.update({
                 "thoughtType": generated.get("thoughtType", "Unknown"),
                 "text": generated.get("text", "")
             })
-        elif collection == "me.comind.blip.emotion":
+        elif collection == "me.comind.emotion":
             title_template = "Emotion: {emotionType}"
             body_template = "{text}"
             context.update({
                 "emotionType": generated.get("emotionType", "Unknown"),
                 "text": generated.get("text", "")
             })
-        elif collection == "me.comind.blip.concept":
+        elif collection == "me.comind.concept":
             title_template = "{text}"
             body_template = "{text}"
             context.update({
@@ -213,23 +213,23 @@ def render_record_card(record, collection):
     else:
         title_template = "Record: {record_type}"
         body_template = ""
-    
+
     # Format title and body using comind_format
     title = comind_format(title_template, context, safe=True, default="Unknown")
     body = comind_format(body_template, context, safe=True, default="")
-    
+
     # Format created date if available
     created_at = record_data.get("createdAt", "")
     created_formatted = format_datetime(created_at) if created_at else ""
-    
+
     # Generate a unique ID for this content
     content_id = f"content-{record_type}-{rkey}"
-    
+
     # Truncate long content with expand/collapse functionality
     content_div = Div(
         P(body, id=content_id, cls="truncated" if len(body) > 300 else ""),
         Button(
-            "Show more", 
+            "Show more",
             cls="expand-button",
             onclick=f"""
                 const content = document.getElementById('{content_id}');
@@ -245,7 +245,7 @@ def render_record_card(record, collection):
             style="display: " + ("block" if len(body) > 300 else "none")
         )
     ) if body else Div()
-    
+
     # Define icon based on record type
     icon_map = {
         "sphere": "🌐",
@@ -256,7 +256,7 @@ def render_record_card(record, collection):
         "response": "💬"
     }
     icon = icon_map.get(record_type.split(".")[-1], "📄")
-    
+
     return Div(
         H3(f"{icon} {title}"),
         content_div,
@@ -277,40 +277,40 @@ def get():
     """Main page showing all recent records"""
     try:
         client = default_login()
-        
+
         collection_sections = []
-        
+
         for collection in COLLECTIONS:
             records = get_recent_records(client, collection, limit=5)
-            
+
             # Skip empty collections
             if not records:
                 continue
-                
+
             # Create section for this collection
             collection_name = collection.split(".")[-1].capitalize()
             record_cards = [render_record_card(record, collection) for record in records]
-            
+
             collection_section = Div(
                 H2(f"{collection_name} Records", cls="collection-title"),
                 *record_cards,
                 cls="collection-section",
                 style="margin-bottom: 2rem;"
             )
-            
+
             collection_sections.append(collection_section)
-        
+
         # If no records found
         if not collection_sections:
             collection_sections = [P("No records found. Please check your credentials and collection names.", cls="no-records")]
-        
+
         # Refresh button with improved styling and auto-refresh option
         refresh_controls = Div(
             Button(
-                Span("↻ Refresh", cls="refresh-text"), 
-                cls="refresh-button", 
-                hx_get="/", 
-                hx_swap="outerHTML", 
+                Span("↻ Refresh", cls="refresh-text"),
+                cls="refresh-button",
+                hx_get="/",
+                hx_swap="outerHTML",
                 hx_target="#content"
             ),
             Div(
@@ -331,7 +331,7 @@ def get():
             """),
             style="display: flex; align-items: center;"
         )
-            
+
         return Title("Comind Record Monitor"), Div(
             Style("""
                 :root {
@@ -475,9 +475,9 @@ def get():
                 cls="header"
             ),
             Div(
-                *[A(collection.split(".")[-1].capitalize(), 
-                    href=f"/{collection.split('.')[-1]}", 
-                    cls="nav-tab") 
+                *[A(collection.split(".")[-1].capitalize(),
+                    href=f"/{collection.split('.')[-1]}",
+                    cls="nav-tab")
                   for collection in COLLECTIONS],
                 cls="nav-tabs"
             ),
@@ -499,12 +499,12 @@ def get_collection(collection: str):
         client = default_login()
         records = get_recent_records(client, f"me.comind.{collection}", limit=10)
         print(records)
-        
+
         record_cards = [render_record_card(record, f"me.comind.{collection}") for record in records]
-        
+
         if not record_cards:
             record_cards = [P("No records found in this collection.")]
-        
+
         return Title(f"{collection.capitalize()} Records"), Div(
             H1(f"{collection.capitalize()} Records"),
             A("Back to All Records", href="/", cls="button"),
@@ -525,14 +525,14 @@ def get_record_detail(collection_type: str, rkey: str):
     try:
         client = default_login()
         collection = f"me.comind.{collection_type}"
-        
+
         # Get the specific record
         response = client.com.atproto.repo.get_record({
             'collection': collection,
             'repo': client.me.did,
             'rkey': rkey
         })
-        
+
         if not response or not hasattr(response, 'value'):
             return Div(
                 H3("Record Not Found"),
@@ -540,25 +540,25 @@ def get_record_detail(collection_type: str, rkey: str):
                 Button("Close", onclick="this.parentElement.outerHTML = originalCardHTML;"),
                 cls="card error-card"
             )
-            
+
         record_data = response.value
-        
+
         # Build context for formatting
         context = {
             "record_type": collection_type,
             "collection": collection,
             "rkey": rkey,
         }
-        
+
         # Add common fields to context
         for key, value in record_data.items():
             if isinstance(value, (str, int, float, bool)):
                 context[key] = value
-        
+
         # Type-specific formatting
         title_template = "Record Details"
         body_template = ""
-        
+
         if collection == "me.comind.sphere.core":
             title_template = "{title}"
             body_template = "{text}"
@@ -568,20 +568,20 @@ def get_record_detail(collection_type: str, rkey: str):
             })
         elif "generated" in record_data and isinstance(record_data["generated"], dict):
             generated = record_data["generated"]
-            
+
             # Add generated fields to context
             for key, value in generated.items():
                 if isinstance(value, (str, int, float, bool)):
                     context[f"generated_{key}"] = value
                     context[key] = value
-            
-            if collection == "me.comind.blip.thought":
+
+            if collection == "me.comind.thought":
                 title_template = "Thought: {thoughtType}"
                 body_template = "{text}"
-            elif collection == "me.comind.blip.emotion":
+            elif collection == "me.comind.emotion":
                 title_template = "Emotion: {emotionType}"
                 body_template = "{text}"
-            elif collection == "me.comind.blip.concept":
+            elif collection == "me.comind.concept":
                 title_template = "{text}"
                 body_template = "{text}"
             elif collection == "me.comind.meld.request":
@@ -590,18 +590,18 @@ def get_record_detail(collection_type: str, rkey: str):
             elif collection == "me.comind.meld.response":
                 title_template = "Meld Response"
                 body_template = "{content}"
-        
+
         # Format title and body using comind_format
         title = comind_format(title_template, context, safe=True, default="Unknown")
         body = comind_format(body_template, context, safe=True, default="")
-        
+
         # Format created date if available
         created_at = record_data.get("createdAt", "")
         created_formatted = format_datetime(created_at) if created_at else ""
-        
+
         # Store the full record JSON
         record_json = json.dumps(record_data, indent=2)
-        
+
         return Div(
             Script(f"const originalCardHTML = this.outerHTML;"),
             H3(f"📄 {title}"),
@@ -613,20 +613,20 @@ def get_record_detail(collection_type: str, rkey: str):
                 Span(f"ID: {rkey}"),
                 cls="card-meta"
             ),
-            Button("Close", 
-                   cls="refresh-button", 
+            Button("Close",
+                   cls="refresh-button",
                    style="margin-top: 1rem;",
                    onclick="this.closest('.card').outerHTML = originalCardHTML;"),
             cls="card detail-card",
             style="max-width: 100%; overflow: hidden;"
         )
-        
+
     except Exception as e:
         return Div(
             H3("Error"),
             P(f"An error occurred: {str(e)}"),
-            Button("Close", 
-                   cls="refresh-button", 
+            Button("Close",
+                   cls="refresh-button",
                    style="margin-top: 1rem;",
                    onclick="this.closest('.card').outerHTML = originalCardHTML;"),
             cls="card error-card"
@@ -635,6 +635,3 @@ def get_record_detail(collection_type: str, rkey: str):
 # Start the app when run directly
 if __name__ == "__main__":
     serve(port=8972)
-
-
-
