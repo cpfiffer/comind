@@ -312,7 +312,7 @@ class Conceptualizer(Comind):
                 log_lines.append(f"[bold magenta]Strength:[/bold magenta] {concept_strength}")
 
             log_message = "\n".join(log_lines)
-            self.logger.info(f"\n{log_message}")
+            self.logger.info(log_message)
 
             # Create printout string
             printout = f"""
@@ -437,7 +437,7 @@ class Feeler(Comind):
                 log_lines.append(f"[bold magenta]Strength:[/bold magenta] {emotion_strength}")
 
             log_message = "\n".join(log_lines)
-            self.logger.info(f"\n{log_message}")
+            self.logger.info(log_message)
 
             # Create printout string
             printout = f"""
@@ -571,7 +571,7 @@ class Thinker(Comind):
                 log_lines.append(f"[bold orange]Alternatives:[/bold orange] {alt_str}")
 
             log_message = "\n".join(log_lines)
-            self.logger.info(f"\n{log_message}")
+            self.logger.info(log_message)
 
             # Create printout string
             printout = f"""
