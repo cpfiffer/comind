@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "me.comind.thought",
-  "revision": 1,
+  "revision": 2,
   "description": "A thought node in the comind network. This references a generated thought and provides additional metadata.",
   "defs": {
     "main": {
@@ -19,6 +19,22 @@
             "type": "ref",
             "ref": "#generated",
             "description": "The generated thought."
+          },
+          "from": {
+            "type": "array",
+            "items": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef"
+            },
+            "description": "An array of strong references to records that were inputs to this thought."
+          },
+          "to": {
+            "type": "array",
+            "items": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef"
+            },
+            "description": "An array of strong references to records that were generated or derived from this thought."
           }
         }
       }
