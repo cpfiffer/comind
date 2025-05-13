@@ -6,7 +6,7 @@ import os
 import re
 import json
 import logging
-from time import time
+import time
 from src.session_reuse import default_login
 import src.structured_gen as sg
 from src.lexicon_utils import generated_lexicon_of, multiple_of_schema, add_link_property
@@ -31,6 +31,7 @@ class Comind:
     logger: logging.Logger
     core_perspective: str = None
     sphere_name: str = None
+
     def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None, core_perspective: str = None, sphere_name: str = None):
         self.name = name
 
@@ -616,18 +617,13 @@ Connection to content: {connection_to_content}
 
 
 if __name__ == "__main__":
-    # Test the Comind class
-    comind1 = Conceptualizer()
-    comind2 = Feeler()
-    comind3 = Thinker()
-    # print(comind.load_prompt())
-    # print(comind.load_common_prompts())
-
-    cominds = [comind1, comind2, comind3]
 
     # Log in
     client = default_login()
-    record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/materials')
+    record_manager = RecordManager(
+        client,
+        'at://neuromute.ai/me.comind.sphere.core/materials'
+    )
     # record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/me')
 
     # sphere_record = record_manager.get_sphere_record()
@@ -635,12 +631,26 @@ if __name__ == "__main__":
 
     generated_strings = []
 
+    core_perspective = record_manager.get_perspective()
+    core_name = record_manager.get_sphere_name()
+    if core_perspective is None:
+        raise ValueError("Core perspective was retrieved but is empty")
+
+    # Test the Comind class
+    args = {
+        'core_perspective':core_perspective,
+        'sphere_name':core_name,
+    }
+    comind1 = Conceptualizer(**args)
+    comind2 = Feeler(**args)
+    comind3 = Thinker(**args)
+    # print(comind.load_prompt())
+    # print(comind.load_common_prompts())
+
+    cominds = [comind1, comind2, comind3]
+
     for comind in cominds:
         try:
-            core_perspective = record_manager.get_perspective()
-            core_name = record_manager.get_sphere_name()
-            if not core_perspective:
-                raise ValueError("Core perspective was retrieved but is empty")
 
             # Print the first 100 characters of the core perspective for debugging
             print(f"Core name: {core_name}")
