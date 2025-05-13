@@ -273,6 +273,7 @@ class Conceptualizer(Comind):
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         """
         Uploads the result to the Comind network.
@@ -327,6 +328,9 @@ Connection to content: {connection_to_content}
                     "text": concept_text,
                 },
             }
+
+            if from_refs:
+                concept_record["from"] = from_refs
 
             # Upload the concept to the Comind network
             maybe_record = record_manager.try_get_record(
@@ -395,6 +399,7 @@ class Feeler(Comind):
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         # Load the concepts
         emotions = result["emotions"]
@@ -449,6 +454,9 @@ Connection to content: {connection_to_content}
                     "text": emotion_text,
                 },
             }
+
+            if from_refs:
+                emotion_record["from"] = from_refs
 
             # Upload the concept to the Comind network
             emotion_creation_result = record_manager.create_record(
@@ -508,6 +516,7 @@ class Thinker(Comind):
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         # Load the concepts
         thoughts = result["thoughts"]
@@ -582,6 +591,9 @@ Connection to content: {connection_to_content}
                     "alternatives": alternatives,
                 },
             }
+
+            if from_refs:
+                thought_record["from"] = from_refs
 
             # Upload the concept to the Comind network
             thought_creation_result = record_manager.create_record(
@@ -712,10 +724,12 @@ if __name__ == "__main__":
                         blip_types[ctype] += 1
 
                 # upload the result
+                current_from_refs = [{"uri": post.uri, "cid": post.cid}]
                 comind.upload(
                     result,
                     record_manager,
                     target=post_uri,
+                    from_refs=current_from_refs
                 )
 
                 # Print out the count of different concept types.

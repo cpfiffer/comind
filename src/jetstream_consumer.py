@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 import asyncio
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Any
 import websockets
 import time
 import logging
@@ -385,14 +385,49 @@ async def process_event(
         # Print a separator panel
         print(Panel.fit(prompt, title="Prompt"))
 
+        # Helper function to recursively collect strongRefs
+        def _collect_strong_refs_from_node(node: Any, refs_set: set):
+            if isinstance(node, dict):
+                node_type = node.get("$type")
+                
+                # Check for PostView
+                if node_type == "app.bsky.feed.defs#postView":
+                    if node.get("uri") and node.get("cid"):
+                        refs_set.add((node["uri"], node["cid"]))
+                
+                # Check for embedded records (quoted posts)
+                elif node_type == "app.bsky.embed.record#viewRecord": # This is the type for resolved embedded records
+                    if node.get("uri") and node.get("cid"):
+                        refs_set.add((node["uri"], node["cid"]))
+
+                # Recursively traverse dictionary values
+                for value in node.values():
+                    _collect_strong_refs_from_node(value, refs_set)
+                    
+            elif isinstance(node, list):
+                # Recursively traverse list items
+                for item in node:
+                    _collect_strong_refs_from_node(item, refs_set)
+
+        from_refs_set = set()
+        if thread_data.get("thread"): # thread_data is the model_dump of the ThreadViewPost
+            _collect_strong_refs_from_node(thread_data["thread"], from_refs_set)
+
+        # Add the target_post itself. target_post is a PostView object.
+        if target_post and hasattr(target_post, 'uri') and hasattr(target_post, 'cid'):
+            from_refs_set.add((target_post.uri, target_post.cid))
+
+        list_of_strong_refs = [{"uri": uri, "cid": cid} for uri, cid in from_refs_set if uri and cid]
+
         # Run the comind
         result = comind.run(context_dict)
 
         # Upload the result
         comind.upload(
             result,
-            RecordManager(client),
-            target=post_uri
+            RecordManager(client), # Consider passing the existing record_manager if appropriate
+            target=post_uri,
+            from_refs=list_of_strong_refs # Pass the collected references
         )
 
     except Exception as e:
