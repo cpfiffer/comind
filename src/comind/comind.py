@@ -11,7 +11,7 @@ from src.session_reuse import default_login
 import src.structured_gen as sg
 from src.lexicon_utils import generated_lexicon_of, multiple_of_schema, add_link_property
 from src.record_manager import RecordManager
-from typing import Optional
+from typing import Optional, List, Dict
 from rich import print
 from rich.panel import Panel
 from rich.text import Text
