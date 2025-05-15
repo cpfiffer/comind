@@ -389,12 +389,12 @@ async def process_event(
         def _collect_strong_refs_from_node(node: Any, refs_set: set):
             if isinstance(node, dict):
                 node_type = node.get("$type")
-                
+
                 # Check for PostView
                 if node_type == "app.bsky.feed.defs#postView":
                     if node.get("uri") and node.get("cid"):
                         refs_set.add((node["uri"], node["cid"]))
-                
+
                 # Check for embedded records (quoted posts)
                 elif node_type == "app.bsky.embed.record#viewRecord": # This is the type for resolved embedded records
                     if node.get("uri") and node.get("cid"):
@@ -403,7 +403,7 @@ async def process_event(
                 # Recursively traverse dictionary values
                 for value in node.values():
                     _collect_strong_refs_from_node(value, refs_set)
-                    
+
             elif isinstance(node, list):
                 # Recursively traverse list items
                 for item in node:
@@ -688,22 +688,23 @@ async def main():
     sphere_to_use = None
 
     logger.debug(f"Found {len(spheres)} spheres")
-    print(spheres)
+
+    # Log string
+    log_string = "Available spheres"
+
     for sphere in spheres:
         value = sphere["value"]
-        text = value["text"]
+        # text = value["text"]
         title = value["title"]
         description = value["description"]
 
-        logger.debug(f"Found sphere: {title} - {text}")
+        log_string += f"\n\t{title} - {description}"
 
         if args.sphere == title:
             sphere_to_use = sphere
-            message = f"Using sphere: {title} - {text}"
-            if description:
-                message += f"\n\n{description}"
-            logger.info(message)
-            break
+            message = f"\n\t{title} - {description} (selected sphere)"
+
+    logger.info(log_string)
 
     if sphere_to_use is None and args.sphere is not None:
         logger.error(f"Sphere {args.sphere} not found. Please create it and assign this comind to it.")
