@@ -39,29 +39,55 @@ class DBManager:
         self.conn = kuzu.Connection(self.db)
         logger.info(f"Initialized DBManager with database at: {db_path}")
         
-        # Try to set up full-text search capability
-        try:
-            self.setup_fts_index()
-        except Exception as e:
-            logger.warning(f"Could not initialize full-text search: {e}. Text search will use fallback method.")
-        
+        # FTS disabled due to known issues with KuzuDB's FTS extension:
+        # - FTS indexes don't include entries added after index creation
+        # - Extension installation makes HTTP requests
+        # - Potential segfaults (see https://github.com/kuzudb/kuzu/issues/5324)
+        # We'll use basic text search instead.
+
     def create_db_if_not_exists(self):
         """Create the database directory if it doesn't exist"""
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
             logger.info(f"Created database directory at: {self.db_path}")
             
-    def setup_schema(self):
+    def setup_schema(self, force=False):
         """
         Set up the database schema based on ATProto lexicons.
         
         This method creates the node and relationship tables needed to
         represent the ATProto data model.
+        
+        Args:
+            force: If True, drop existing tables before creating new ones
         """
         try:
+            if force:
+                # Drop existing tables if they exist
+                try:
+                    # First drop relationship tables
+                    for rel_table in ["AUTHORED", "OWNS", "IN_SPHERE", "LINKS", 
+                                     "TARGET", "FOLLOWS", "LIKES", "REPOSTS", "BLOCKS"]:
+                        try:
+                            self.conn.execute(f"DROP TABLE IF EXISTS {rel_table}")
+                        except Exception as e:
+                            logger.debug(f"Error dropping relationship table {rel_table}: {e}")
+                    
+                    # Then drop node tables
+                    for node_table in ["Record", "Repo", "User", "Sphere", 
+                                      "BlipConcept", "BlipEmotion", "BlipThought"]:
+                        try:
+                            self.conn.execute(f"DROP TABLE IF EXISTS {node_table}")
+                        except Exception as e:
+                            logger.debug(f"Error dropping node table {node_table}: {e}")
+                    
+                    logger.info("Dropped existing tables")
+                except Exception as e:
+                    logger.warning(f"Error dropping tables: {e}")
+            
             # Create User node table
             self.conn.execute("""
-                CREATE NODE TABLE User (
+                CREATE NODE TABLE IF NOT EXISTS User (
                     did STRING PRIMARY KEY,
                     handle STRING,
                     displayName STRING,
@@ -71,78 +97,69 @@ class DBManager:
             
             # Create Repo node table
             self.conn.execute("""
-                CREATE NODE TABLE Repo (
+                CREATE NODE TABLE IF NOT EXISTS Repo (
                     did STRING PRIMARY KEY,
                     handle STRING,
                     receivedAt TIMESTAMP
                 )
             """)
             
-            # Create ATRecord node table (base for all record types)
+            # Create Record node table (consolidated all ATProto records here)
+            # Make sure all columns are properly defined
             self.conn.execute("""
-                CREATE NODE TABLE ATRecord (
+                CREATE NODE TABLE IF NOT EXISTS Record (
                     uri STRING PRIMARY KEY,
-                    cid STRING,
-                    nsid STRING,
-                    rkey STRING,
+                    cid STRING DEFAULT '',
+                    collection STRING DEFAULT '',
+                    nsid STRING DEFAULT '',
+                    rkey STRING DEFAULT '',
+                    text STRING DEFAULT '',
+                    recordType STRING DEFAULT '',
+                    labels STRING DEFAULT '',
+                    content STRING DEFAULT '',
+                    raw STRING DEFAULT '',
                     createdAt TIMESTAMP,
-                    receivedAt TIMESTAMP,
-                    raw STRING,
-                    text STRING,
-                    labels STRING
-                )
-            """)
-            
-            # Create Record node table (base for all record types)
-            self.conn.execute("""
-                CREATE NODE TABLE Record (
-                    uri STRING PRIMARY KEY,
-                    cid STRING,
-                    collection STRING,
-                    rkey STRING,
-                    createdAt TIMESTAMP,
-                    recordType STRING,
-                    content STRING
+                    receivedAt TIMESTAMP
                 )
             """)
             
             # Create sphere table
             self.conn.execute("""
-                CREATE NODE TABLE Sphere (
+                CREATE NODE TABLE IF NOT EXISTS Sphere (
                     uri STRING PRIMARY KEY,
-                    title STRING,
-                    text STRING,
-                    description STRING,
+                    title STRING DEFAULT '',
+                    text STRING DEFAULT '',
+                    description STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
             # Create BlipConcept table
             self.conn.execute("""
-                CREATE NODE TABLE BlipConcept (
+                CREATE NODE TABLE IF NOT EXISTS BlipConcept (
                     uri STRING PRIMARY KEY,
-                    text STRING,
+                    text STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
             # Create BlipEmotion table
             self.conn.execute("""
-                CREATE NODE TABLE BlipEmotion (
+                CREATE NODE TABLE IF NOT EXISTS BlipEmotion (
                     uri STRING PRIMARY KEY,
-                    type STRING,
-                    text STRING,
+                    type STRING DEFAULT '',
+                    text STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
             # Create BlipThought table
             self.conn.execute("""
-                CREATE NODE TABLE BlipThought (
+                CREATE NODE TABLE IF NOT EXISTS BlipThought (
                     uri STRING PRIMARY KEY,
-                    type STRING,
-                    context STRING,
-                    text STRING,
+                    type STRING DEFAULT '',
+                    context STRING DEFAULT '',
+                    text STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
@@ -151,23 +168,23 @@ class DBManager:
             
             # AUTHORED relationship between User and Record
             self.conn.execute("""
-                CREATE REL TABLE AUTHORED (
+                CREATE REL TABLE IF NOT EXISTS AUTHORED (
                     FROM User TO Record,
                     createdAt TIMESTAMP
                 )
             """)
             
-            # OWNS relationship between Repo and ATRecord
+            # OWNS relationship between Repo and Record
             self.conn.execute("""
-                CREATE REL TABLE OWNS (
-                    FROM Repo TO ATRecord,
+                CREATE REL TABLE IF NOT EXISTS OWNS (
+                    FROM Repo TO Record,
                     createdAt TIMESTAMP
                 )
             """)
             
             # IN_SPHERE relationship between Record and Sphere
             self.conn.execute("""
-                CREATE REL TABLE IN_SPHERE (
+                CREATE REL TABLE IF NOT EXISTS IN_SPHERE (
                     FROM Record TO Sphere,
                     createdAt TIMESTAMP
                 )
@@ -175,64 +192,73 @@ class DBManager:
             
             # LINKS relationship for general connections between records
             self.conn.execute("""
-                CREATE REL TABLE LINKS (
+                CREATE REL TABLE IF NOT EXISTS LINKS (
                     FROM Record TO Record,
-                    relType STRING,
-                    strength FLOAT,
-                    note STRING,
+                    relType STRING DEFAULT 'REFERENCES',
+                    strength FLOAT DEFAULT 1.0,
+                    note STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
             # TARGET relationship for records with targets
             self.conn.execute("""
-                CREATE REL TABLE TARGET (
+                CREATE REL TABLE IF NOT EXISTS TARGET (
                     FROM Record TO Record,
                     createdAt TIMESTAMP
                 )
             """)
             
-            # FOLLOWS relationship between ATRecords
+            # FOLLOWS relationship between Records
             self.conn.execute("""
-                CREATE REL TABLE FOLLOWS (
-                    FROM ATRecord TO ATRecord, 
-                    sourceRecord STRING,
+                CREATE REL TABLE IF NOT EXISTS FOLLOWS (
+                    FROM Record TO Record, 
+                    sourceRecord STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
-            # LIKES relationship between ATRecords
+            # LIKES relationship between Records
             self.conn.execute("""
-                CREATE REL TABLE LIKES (
-                    FROM ATRecord TO ATRecord,
-                    sourceRecord STRING,
+                CREATE REL TABLE IF NOT EXISTS LIKES (
+                    FROM Record TO Record,
+                    sourceRecord STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
-            # REPOSTS relationship between ATRecords
+            # REPOSTS relationship between Records
             self.conn.execute("""
-                CREATE REL TABLE REPOSTS (
-                    FROM ATRecord TO ATRecord,
-                    sourceRecord STRING,
+                CREATE REL TABLE IF NOT EXISTS REPOSTS (
+                    FROM Record TO Record,
+                    sourceRecord STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
             
-            # BLOCKS relationship between ATRecords
+            # BLOCKS relationship between Records
             self.conn.execute("""
-                CREATE REL TABLE BLOCKS (
-                    FROM ATRecord TO ATRecord,
-                    sourceRecord STRING,
+                CREATE REL TABLE IF NOT EXISTS BLOCKS (
+                    FROM Record TO Record,
+                    sourceRecord STRING DEFAULT '',
                     createdAt TIMESTAMP
                 )
             """)
+            
+            # Add index on nsid and collection - Use correct KuzuDB syntax
+            try:
+                # KuzuDB might not support CREATE INDEX syntax
+                # This might be supported in future versions
+                # Just log the info and continue without index for now
+                logger.info("Skipping index creation - not supported in current KuzuDB version")
+            except Exception as e:
+                logger.warning(f"Could not create index: {e}")
             
             logger.info("Successfully created database schema")
             
         except Exception as e:
             if "already exists" in str(e):
-                logger.info("Schema already exists, skipping creation")
+                logger.info("Some schema elements already exist, continuing")
             else:
                 logger.error(f"Error creating schema: {str(e)}")
                 raise e
@@ -301,6 +327,8 @@ class DBManager:
             except Exception as e:
                 logger.warning(f"Error parsing timestamp {created_at_str}: {e}. Using current time.")
                 created_at = datetime.now()
+            
+            received_at = datetime.now()
             
             # Insert record into appropriate node table based on type
             if "sphere.core" in collection:
@@ -434,6 +462,206 @@ class DBManager:
                         'rel_type': record.get("relationship", ""),
                         'strength': record.get("strength", 1.0),
                         'note': record.get("note", ""),
+                        'createdAt': created_at
+                    })
+            
+            # Convert timestamps to ISO format strings for storage
+            # Use separate command for timestamps since they're most likely to cause issues
+            self.conn.execute("""
+                MATCH (r:Record {uri: $uri})
+                SET r.createdAt = $createdAt,
+                    r.receivedAt = $receivedAt
+            """, {
+                'uri': uri, 
+                'createdAt': created_at.isoformat(),
+                'receivedAt': received_at.isoformat()
+            })
+            
+            # Create OWNS relationship between repo and record
+            self.conn.execute("""
+                MATCH (repo:Repo {did: $did})
+                MATCH (record:Record {uri: $uri})
+                MERGE (repo)-[rel:OWNS]->(record)
+                SET rel.createdAt = $createdAt
+            """, {
+                'did': author_did,
+                'uri': uri,
+                'createdAt': received_at.isoformat()
+            })
+            
+            # Handle special record types that create relationships
+            if collection == "app.bsky.graph.follow" and "subject" in record:
+                target_did = record["subject"]
+                # Find the target repo
+                self.conn.execute("""
+                    MERGE (target:Repo {did: $target_did})
+                """, {
+                    'target_did': target_did
+                })
+                
+                # Create FOLLOWS relationship
+                self.conn.execute("""
+                    MATCH (source:Record {uri: $uri})
+                    MATCH (source_repo:Repo {did: $source_did})
+                    MATCH (target_repo:Repo {did: $target_did})
+                    MERGE (source_repo)-[rel:FOLLOWS]->(target_repo)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'source_did': author_did,
+                    'target_did': target_did,
+                    'createdAt': created_at
+                })
+            
+            elif collection == "app.bsky.feed.like" and "subject" in record:
+                target_uri = record["subject"]["uri"]
+                # Create LIKES relationship
+                self.conn.execute("""
+                    MATCH (source:Record {uri: $uri})
+                    MATCH (target:Record {uri: $target_uri})
+                    MERGE (source)-[rel:LIKES]->(target)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'target_uri': target_uri,
+                    'createdAt': created_at
+                })
+            
+            elif collection == "app.bsky.feed.repost" and "subject" in record:
+                target_uri = record["subject"]["uri"]
+                # Create REPOSTS relationship
+                self.conn.execute("""
+                    MATCH (source:Record {uri: $uri})
+                    MATCH (target:Record {uri: $target_uri})
+                    MERGE (source)-[rel:REPOSTS]->(target)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'target_uri': target_uri,
+                    'createdAt': created_at
+                })
+            
+            elif collection == "app.bsky.graph.block" and "subject" in record:
+                target_did = record["subject"]
+                # Find the target repo
+                self.conn.execute("""
+                    MERGE (target:Repo {did: $target_did})
+                """, {
+                    'target_did': target_did
+                })
+                
+                # Create BLOCKS relationship
+                self.conn.execute("""
+                    MATCH (source:Record {uri: $uri})
+                    MATCH (source_repo:Repo {did: $source_did})
+                    MATCH (target_repo:Repo {did: $target_did})
+                    MERGE (source_repo)-[rel:BLOCKS]->(target_repo)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'source_did': author_did,
+                    'target_did': target_did,
+                    'createdAt': created_at
+                })
+            
+            # Handle Comind specific records
+            if "me.comind" in collection:
+                # Add appropriate label based on record type
+                if "blip.concept" in collection:
+                    self.conn.execute("""
+                        MATCH (r:Record {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'Record,Blip,Concept'
+                                         WHEN r.labels CONTAINS 'Concept' THEN r.labels
+                                         ELSE r.labels + ',Blip,Concept'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "blip.thought" in collection:
+                    self.conn.execute("""
+                        MATCH (r:Record {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'Record,Blip,Thought'
+                                         WHEN r.labels CONTAINS 'Thought' THEN r.labels
+                                         ELSE r.labels + ',Blip,Thought'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "blip.emotion" in collection:
+                    self.conn.execute("""
+                        MATCH (r:Record {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'Record,Blip,Emotion'
+                                         WHEN r.labels CONTAINS 'Emotion' THEN r.labels
+                                         ELSE r.labels + ',Blip,Emotion'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "sphere.core" in collection:
+                    self.conn.execute("""
+                        MATCH (r:Record {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'Record,Core'
+                                         WHEN r.labels CONTAINS 'Core' THEN r.labels
+                                         ELSE r.labels + ',Core'
+                                       END
+                    """, {'uri': uri})
+                
+                # Handle "from" records that create references
+                if "from" in record and isinstance(record["from"], list):
+                    for ref in record["from"]:
+                        if "uri" in ref:
+                            from_uri = ref["uri"]
+                            self.conn.execute("""
+                                MATCH (target:Record {uri: $uri})
+                                MERGE (source:Record {uri: $from_uri})
+                                MERGE (source)-[rel:LINKS]->(target)
+                                SET rel.relType = 'REFERENCES',
+                                    rel.createdAt = $createdAt
+                            """, {
+                                'uri': uri,
+                                'from_uri': from_uri,
+                                'createdAt': created_at
+                            })
+                
+                # Handle relationship links
+                if "relationship.link" in collection:
+                    if "target" in record:
+                        target_uri = record["target"]
+                        self.conn.execute("""
+                            MATCH (source:Record {uri: $uri})
+                            MERGE (target:Record {uri: $target_uri})
+                            MERGE (source)-[rel:LINKS]->(target)
+                            SET rel.relType = $rel_type,
+                                rel.strength = $strength,
+                                rel.note = $note,
+                                rel.createdAt = $createdAt
+                        """, {
+                            'uri': uri,
+                            'target_uri': target_uri,
+                            'rel_type': record.get("relationship", "REFERENCES"),
+                            'strength': record.get("strength", 1.0),
+                            'note': record.get("note", ""),
+                            'createdAt': created_at
+                        })
+                
+                # Handle sphere assignment
+                if "relationship.sphere" in collection and "sphere_uri" in record and "target" in record:
+                    sphere_uri = record["sphere_uri"]
+                    target_uri = record["target"]["uri"]
+                    
+                    self.conn.execute("""
+                        MATCH (record:Record {uri: $target_uri})
+                        MATCH (sphere:Record {uri: $sphere_uri})
+                        MERGE (sphere)-[rel:CONGREGATES]->(record)
+                        SET rel.createdAt = $createdAt
+                    """, {
+                        'target_uri': target_uri,
+                        'sphere_uri': sphere_uri,
                         'createdAt': created_at
                     })
             
@@ -833,6 +1061,15 @@ class DBManager:
         """
         Set up full-text search indexes for the database.
         This needs to be called once to enable full-text search.
+        
+        Note: Disabled due to known issues with KuzuDB's FTS extension.
+        See https://github.com/kuzudb/kuzu/issues/5324
+        """
+        # FTS functionality disabled due to issues
+        logger.info("Full-text search is disabled due to known issues with KuzuDB's FTS extension")
+        return False
+        
+        # Commented out FTS setup code:
         """
         try:
             # Install and load FTS extension
@@ -840,9 +1077,9 @@ class DBManager:
             self.conn.execute("LOAD FTS")
             
             # Create FTS indexes for Record content
-            self.conn.execute("""
+            self.conn.execute('''
                 CALL CREATE_FTS_INDEX('Record', 'content_index', ['content'])
-            """)
+            ''')
             
             logger.info("Full-text search indexes created successfully")
             return True
@@ -853,10 +1090,13 @@ class DBManager:
                 return True
             logger.error(f"Error setting up full-text search indexes: {str(e)}")
             return False
+        """
     
     def find_similar_records(self, text: str, collection: str = None, limit: int = 10) -> List[Dict]:
         """
-        Find records with similar text content using full-text search.
+        Find records with similar text content.
+        
+        Note: Using basic search method as FTS is disabled due to known issues.
         
         Args:
             text: The text to search for
@@ -866,110 +1106,106 @@ class DBManager:
         Returns:
             List of matching records
         """
-        try:
-            # Try to ensure FTS is installed
-            try:
-                self.setup_fts_index()
-            except Exception as e:
-                logger.warning(f"Could not set up FTS index: {e}. Using basic search.")
-                return self._find_records_basic(text, collection, limit)
-            
-            # Use FTS query
-            if collection:
-                # With collection filter
-                query = f"""
-                    CALL QUERY_FTS_INDEX('Record', 'content_index', $search_text) 
-                    YIELD node, score
-                    WITH node, score
-                    WHERE node.collection = $collection
-                    RETURN node.uri as uri, node.content as content, node.collection as collection, score
-                    ORDER BY score DESC
-                    LIMIT $limit
-                """
-                params = {'search_text': text, 'collection': collection, 'limit': limit}
-            else:
-                # Without collection filter
-                query = f"""
-                    CALL QUERY_FTS_INDEX('Record', 'content_index', $search_text) 
-                    YIELD node, score
-                    WITH node, score
-                    RETURN node.uri as uri, node.content as content, node.collection as collection, score
-                    ORDER BY score DESC
-                    LIMIT $limit
-                """
-                params = {'search_text': text, 'limit': limit}
-            
-            result = self.conn.execute(query, params)
-            matches = []
-            
-            while result.has_next():
-                row = result.get_next()
-                uri, content, collection, score = row
-                matches.append({
-                    'uri': uri,
-                    'collection': collection,
-                    'value': json.loads(content),
-                    'score': score
-                })
-                
-            return matches
-                
-        except Exception as e:
-            logger.error(f"Error finding similar records with FTS: {str(e)}")
-            # Fall back to basic search if FTS fails
-            return self._find_records_basic(text, collection, limit)
+        # Always use basic search method
+        logger.debug("Using basic search method for similar records, as FTS is disabled due to known issues")
+        return self._find_records_basic(text, collection, limit)
     
     def _find_records_basic(self, text: str, collection: str = None, limit: int = 10) -> List[Dict]:
         """
         Basic search implementation that filters records in Python.
         Used as a fallback when FTS is not available.
+        
+        Raises:
+            Exception: If there is an error performing the search
         """
         try:
-            # Query to get records
-            if collection:
-                query = """
-                    MATCH (r:Record)
-                    WHERE r.collection = $collection
-                    RETURN r.uri as uri, r.content as content, r.collection as collection
-                    LIMIT $max_records
-                """
-                params = {'collection': collection, 'max_records': limit * 10}  # Get more to filter
-            else:
-                query = """
-                    MATCH (r:Record)
-                    RETURN r.uri as uri, r.content as content, r.collection as collection
-                    LIMIT $max_records
-                """
-                params = {'max_records': limit * 10}  # Get more to filter
+            # Ensure Record table exists with minimal required schema
+            self.conn.execute("""
+                CREATE NODE TABLE IF NOT EXISTS Record (
+                    uri STRING PRIMARY KEY,
+                    content STRING
+                )
+            """)
+            
+            # Query to get all records - we'll filter in Python
+            query = """
+                MATCH (r:Record)
+                RETURN r.uri as uri, r.content as content
+                LIMIT $max_records
+            """
+            params = {'max_records': limit * 5}  # Get more to filter
             
             result = self.conn.execute(query, params)
-            matches = []
             
-            # Process in Python
+            # Normalize search text for case-insensitive comparison
+            search_text = text.lower()
+            
+            # Process results directly
+            matches = []
             while result.has_next():
                 row = result.get_next()
-                uri, content, collection = row
+                uri, content_json = row
                 
-                # Check if content contains search text
-                content_obj = json.loads(content)
-                content_str = json.dumps(content_obj).lower()
+                if not content_json:
+                    continue
                 
-                if text.lower() in content_str:
-                    matches.append({
-                        'uri': uri,
-                        'collection': collection,
-                        'value': content_obj
-                    })
+                try:
+                    # Parse properties from content JSON
+                    properties = json.loads(content_json)
                     
-                    if len(matches) >= limit:
-                        break
+                    # Apply collection filter if specified
+                    if collection:
+                        record_collection = properties.get('collection', properties.get('nsid', ''))
+                        if record_collection != collection:
+                            continue
+                    
+                    found = False
+                    
+                    # Check text field first
+                    record_text = properties.get('text', '')
+                    if record_text and search_text in record_text.lower():
+                        found = True
+                    
+                    # Also check raw content if not found in text
+                    if not found and 'raw' in properties:
+                        raw = properties['raw']
+                        if raw and search_text in raw.lower():
+                            found = True
+                    
+                    # If found, create a record object
+                    if found:
+                        record = {
+                            'uri': properties.get('uri', uri),
+                            'cid': properties.get('cid', ''),
+                            'nsid': properties.get('nsid', properties.get('collection', '')),
+                            'value': {}
+                        }
+                        
+                        # Parse raw JSON if available
+                        raw_json = properties.get('raw')
+                        if raw_json:
+                            try:
+                                record['value'] = json.loads(raw_json)
+                            except Exception as e:
+                                logger.debug(f"Failed to parse raw JSON for {uri}: {e}")
+                                # Continue with empty value rather than failing
+                        
+                        matches.append(record)
+                        
+                        # Stop if we've found enough matches
+                        if len(matches) >= limit:
+                            break
+                            
+                except Exception as e:
+                    logger.debug(f"Error processing record during search: {e}")
+                    # Skip this record and continue with the next one
             
             return matches
             
         except Exception as e:
             logger.error(f"Error in basic record search: {str(e)}")
-            return []
-    
+            raise e
+
     def store_atproto_record(self, uri: str, cid: str, nsid: str, record: Dict, 
                         author_did: str, rkey: str, labels: List[str] = None):
         """
@@ -983,6 +1219,12 @@ class DBManager:
             author_did: The DID of the record's author/repo owner
             rkey: The record key identifier
             labels: Additional labels to apply to the node (e.g., 'Blip', 'Concept')
+            
+        Returns:
+            bool: True if the record was successfully stored
+            
+        Raises:
+            Exception: If there is an error storing the record
         """
         try:
             # Convert record to JSON string
@@ -1019,233 +1261,121 @@ class DBManager:
             if labels:
                 labels_str = ",".join(labels)
             
-            # First, ensure the repo exists
-            self.conn.execute("""
-                MERGE (r:Repo {did: $did})
-                SET r.receivedAt = $receivedAt
-            """, {
-                'did': author_did,
-                'receivedAt': received_at
-            })
+            # Determine record type from NSID
+            record_type = nsid.split('.')[-1]
+            if nsid.startswith('me.comind.blip.'):
+                record_type = nsid.split('.')[-1]  # concept, thought, emotion
+            elif nsid == 'me.comind.sphere.core':
+                record_type = 'sphere'
+            elif nsid.startswith('me.comind.relationship.'):
+                record_type = nsid.split('.')[-1]  # link, sphere, etc.
             
-            # Store the ATRecord
-            self.conn.execute("""
-                MERGE (r:ATRecord {uri: $uri})
-                SET r.cid = $cid,
-                    r.nsid = $nsid,
-                    r.rkey = $rkey,
-                    r.createdAt = $createdAt,
-                    r.receivedAt = $receivedAt,
-                    r.raw = $raw,
-                    r.text = $text,
-                    r.labels = $labels
-            """, {
-                'uri': uri,
-                'cid': cid,
-                'nsid': nsid,
-                'rkey': rkey,
-                'createdAt': created_at,
-                'receivedAt': received_at,
-                'raw': record_json,
-                'text': text,
-                'labels': labels_str
-            })
+            # First create the repository node
+            try:
+                # Ensure Repo table exists
+                self.conn.execute("""
+                    CREATE NODE TABLE IF NOT EXISTS Repo (
+                        did STRING PRIMARY KEY,
+                        handle STRING DEFAULT '',
+                        receivedAt TIMESTAMP
+                    )
+                """)
+                
+                # Create or update the repo
+                self.conn.execute("""
+                    MERGE (r:Repo {did: $did})
+                    SET r.handle = $handle,
+                        r.receivedAt = timestamp($receivedAt)
+                """, {
+                    'did': author_did,
+                    'handle': author_did,
+                    'receivedAt': received_at.isoformat()
+                })
+                
+                logger.debug(f"Created/updated repository for {author_did}")
+            except Exception as e:
+                logger.error(f"Error creating repository: {e}")
+                raise Exception(f"Failed to create repository for {author_did}: {e}")
+            
+            # Now create the Record node
+            try:
+                # CRITICAL CHANGE: Store ALL record properties in a content JSON field to avoid schema issues
+                # This is a more robust approach that avoids property-not-found errors
+                
+                # First ensure Record table exists with minimal required schema
+                self.conn.execute("""
+                    CREATE NODE TABLE IF NOT EXISTS Record (
+                        uri STRING PRIMARY KEY,
+                        content STRING
+                    )
+                """)
+                
+                # Create a complete properties object containing ALL data
+                # This is stored as a single JSON field to avoid property access issues
+                record_properties = {
+                    'uri': uri,
+                    'cid': cid,
+                    'collection': nsid,
+                    'nsid': nsid,
+                    'rkey': rkey,
+                    'text': text,
+                    'recordType': record_type,
+                    'labels': labels_str,
+                    'raw': record_json,
+                    'createdAt': created_at.isoformat(),
+                    'receivedAt': received_at.isoformat()
+                }
+                
+                # Store the entire record as a JSON string in the content property
+                record_properties_json = json.dumps(record_properties)
+                
+                # Create or update the record with the JSON content
+                self.conn.execute("""
+                    MERGE (r:Record {uri: $uri})
+                    SET r.content = $content
+                """, {
+                    'uri': uri, 
+                    'content': record_properties_json
+                })
+                
+                logger.debug(f"Created/updated record: {uri}")
+            except Exception as e:
+                logger.error(f"Error creating record: {e}")
+                raise Exception(f"Failed to create record {uri}: {e}")
             
             # Create OWNS relationship between repo and record
-            self.conn.execute("""
-                MATCH (repo:Repo {did: $did})
-                MATCH (record:ATRecord {uri: $uri})
-                MERGE (repo)-[rel:OWNS]->(record)
-                SET rel.createdAt = $createdAt
-            """, {
-                'did': author_did,
-                'uri': uri,
-                'createdAt': received_at
-            })
-            
-            # Handle special record types that create relationships
-            if nsid == "app.bsky.graph.follow" and "subject" in record:
-                target_did = record["subject"]
-                # Find the target repo
+            try:
+                # Ensure OWNS relationship table exists
                 self.conn.execute("""
-                    MERGE (target:Repo {did: $target_did})
-                """, {
-                    'target_did': target_did
-                })
+                    CREATE REL TABLE IF NOT EXISTS OWNS (
+                        FROM Repo TO Record,
+                        createdAt TIMESTAMP
+                    )
+                """)
                 
-                # Create FOLLOWS relationship
+                # Create the relationship
                 self.conn.execute("""
-                    MATCH (source:ATRecord {uri: $uri})
-                    MATCH (source_repo:Repo {did: $source_did})
-                    MATCH (target_repo:Repo {did: $target_did})
-                    MERGE (source_repo)-[rel:FOLLOWS]->(target_repo)
-                    SET rel.sourceRecord = $uri,
-                        rel.createdAt = $createdAt
+                    MATCH (repo:Repo {did: $did})
+                    MATCH (record:Record {uri: $uri})
+                    MERGE (repo)-[rel:OWNS]->(record)
+                    SET rel.createdAt = timestamp($createdAt)
                 """, {
+                    'did': author_did,
                     'uri': uri,
-                    'source_did': author_did,
-                    'target_did': target_did,
-                    'createdAt': created_at
-                })
-            
-            elif nsid == "app.bsky.feed.like" and "subject" in record:
-                target_uri = record["subject"]["uri"]
-                # Create LIKES relationship
-                self.conn.execute("""
-                    MATCH (source:ATRecord {uri: $uri})
-                    MATCH (target:ATRecord {uri: $target_uri})
-                    MERGE (source)-[rel:LIKES]->(target)
-                    SET rel.sourceRecord = $uri,
-                        rel.createdAt = $createdAt
-                """, {
-                    'uri': uri,
-                    'target_uri': target_uri,
-                    'createdAt': created_at
-                })
-            
-            elif nsid == "app.bsky.feed.repost" and "subject" in record:
-                target_uri = record["subject"]["uri"]
-                # Create REPOSTS relationship
-                self.conn.execute("""
-                    MATCH (source:ATRecord {uri: $uri})
-                    MATCH (target:ATRecord {uri: $target_uri})
-                    MERGE (source)-[rel:REPOSTS]->(target)
-                    SET rel.sourceRecord = $uri,
-                        rel.createdAt = $createdAt
-                """, {
-                    'uri': uri,
-                    'target_uri': target_uri,
-                    'createdAt': created_at
-                })
-            
-            elif nsid == "app.bsky.graph.block" and "subject" in record:
-                target_did = record["subject"]
-                # Find the target repo
-                self.conn.execute("""
-                    MERGE (target:Repo {did: $target_did})
-                """, {
-                    'target_did': target_did
+                    'createdAt': received_at.isoformat()
                 })
                 
-                # Create BLOCKS relationship
-                self.conn.execute("""
-                    MATCH (source:ATRecord {uri: $uri})
-                    MATCH (source_repo:Repo {did: $source_did})
-                    MATCH (target_repo:Repo {did: $target_did})
-                    MERGE (source_repo)-[rel:BLOCKS]->(target_repo)
-                    SET rel.sourceRecord = $uri,
-                        rel.createdAt = $createdAt
-                """, {
-                    'uri': uri,
-                    'source_did': author_did,
-                    'target_did': target_did,
-                    'createdAt': created_at
-                })
+                logger.debug(f"Created OWNS relationship from {author_did} to {uri}")
+            except Exception as e:
+                logger.error(f"Error creating OWNS relationship: {e}")
+                raise Exception(f"Failed to create OWNS relationship: {e}")
             
-            # Handle Comind specific records
-            if "me.comind" in nsid:
-                # Add appropriate label based on record type
-                if "blip.concept" in nsid:
-                    self.conn.execute("""
-                        MATCH (r:ATRecord {uri: $uri})
-                        SET r.labels = CASE 
-                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Concept'
-                                         WHEN r.labels CONTAINS 'Concept' THEN r.labels
-                                         ELSE r.labels + ',Blip,Concept'
-                                       END
-                    """, {'uri': uri})
-                
-                elif "blip.thought" in nsid:
-                    self.conn.execute("""
-                        MATCH (r:ATRecord {uri: $uri})
-                        SET r.labels = CASE 
-                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Thought'
-                                         WHEN r.labels CONTAINS 'Thought' THEN r.labels
-                                         ELSE r.labels + ',Blip,Thought'
-                                       END
-                    """, {'uri': uri})
-                
-                elif "blip.emotion" in nsid:
-                    self.conn.execute("""
-                        MATCH (r:ATRecord {uri: $uri})
-                        SET r.labels = CASE 
-                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Emotion'
-                                         WHEN r.labels CONTAINS 'Emotion' THEN r.labels
-                                         ELSE r.labels + ',Blip,Emotion'
-                                       END
-                    """, {'uri': uri})
-                
-                elif "sphere.core" in nsid:
-                    self.conn.execute("""
-                        MATCH (r:ATRecord {uri: $uri})
-                        SET r.labels = CASE 
-                                         WHEN r.labels = '' THEN 'ATRecord,Core'
-                                         WHEN r.labels CONTAINS 'Core' THEN r.labels
-                                         ELSE r.labels + ',Core'
-                                       END
-                    """, {'uri': uri})
-                
-                # Handle "from" records that create references
-                if "from" in record and isinstance(record["from"], list):
-                    for ref in record["from"]:
-                        if "uri" in ref:
-                            from_uri = ref["uri"]
-                            self.conn.execute("""
-                                MATCH (target:ATRecord {uri: $uri})
-                                MERGE (source:ATRecord {uri: $from_uri})
-                                MERGE (source)-[rel:LINKS]->(target)
-                                SET rel.relType = 'REFERENCES',
-                                    rel.createdAt = $createdAt
-                            """, {
-                                'uri': uri,
-                                'from_uri': from_uri,
-                                'createdAt': created_at
-                            })
-                
-                # Handle relationship links
-                if "relationship.link" in nsid:
-                    if "target" in record:
-                        target_uri = record["target"]
-                        self.conn.execute("""
-                            MATCH (source:ATRecord {uri: $uri})
-                            MERGE (target:ATRecord {uri: $target_uri})
-                            MERGE (source)-[rel:LINKS]->(target)
-                            SET rel.relType = $rel_type,
-                                rel.strength = $strength,
-                                rel.note = $note,
-                                rel.createdAt = $createdAt
-                        """, {
-                            'uri': uri,
-                            'target_uri': target_uri,
-                            'rel_type': record.get("relationship", "REFERENCES"),
-                            'strength': record.get("strength", 1.0),
-                            'note': record.get("note", ""),
-                            'createdAt': created_at
-                        })
-                
-                # Handle sphere assignment
-                if "relationship.sphere" in nsid and "sphere_uri" in record and "target" in record:
-                    sphere_uri = record["sphere_uri"]
-                    target_uri = record["target"]["uri"]
-                    
-                    self.conn.execute("""
-                        MATCH (record:ATRecord {uri: $target_uri})
-                        MATCH (sphere:ATRecord {uri: $sphere_uri})
-                        MERGE (sphere)-[rel:CONGREGATES]->(record)
-                        SET rel.createdAt = $createdAt
-                    """, {
-                        'target_uri': target_uri,
-                        'sphere_uri': sphere_uri,
-                        'createdAt': created_at
-                    })
-            
-            logger.debug(f"Stored ATProto record: {nsid}/{rkey}")
+            # Return success
             return True
             
         except Exception as e:
             logger.error(f"Error storing ATProto record {uri}: {str(e)}")
-            logger.exception(e)
-            return False
+            raise e
     
     def get_atproto_record(self, uri: str) -> Optional[Dict]:
         """
@@ -1256,36 +1386,71 @@ class DBManager:
             
         Returns:
             The record as a dictionary if found, None otherwise
+            
+        Raises:
+            Exception: If there is an error retrieving the record
         """
         try:
+            # Ensure Record table exists with minimal required schema
+            self.conn.execute("""
+                CREATE NODE TABLE IF NOT EXISTS Record (
+                    uri STRING PRIMARY KEY,
+                    content STRING
+                )
+            """)
+            
+            # Query to retrieve record by URI - get content field which has all properties
             query = """
-                MATCH (r:ATRecord {uri: $uri})
-                RETURN r.uri as uri, r.cid as cid, r.nsid as nsid, r.raw as raw, 
-                       r.createdAt as createdAt, r.receivedAt as receivedAt, r.labels as labels
+                MATCH (r:Record {uri: $uri})
+                RETURN r.content as content, count(r) as count
             """
             
             result = self.conn.execute(query, {'uri': uri})
             
-            if result.has_next():
-                row = result.get_next()
-                uri, cid, nsid, raw, created_at, received_at, labels = row
-                
-                record = {
-                    'uri': uri,
-                    'cid': cid,
-                    'nsid': nsid,
-                    'value': json.loads(raw),
-                    'createdAt': created_at,
-                    'receivedAt': received_at,
-                    'labels': labels.split(',') if labels else []
-                }
-                return record
-            else:
+            if not result.has_next():
                 return None
+                
+            row = result.get_next()
+            content_json, count = row
+            
+            if count == 0 or not content_json:
+                return None
+            
+            # Parse the content JSON which contains all record properties
+            try:
+                properties = json.loads(content_json)
+                
+                # Create a standardized record object
+                record = {
+                    'uri': properties.get('uri', uri),
+                    'cid': properties.get('cid', ''),
+                    'nsid': properties.get('nsid', properties.get('collection', '')),
+                    'rkey': properties.get('rkey', ''),
+                    'text': properties.get('text', ''),
+                    'labels': properties.get('labels', '').split(',') if properties.get('labels') else [],
+                    'createdAt': properties.get('createdAt'),
+                    'receivedAt': properties.get('receivedAt'),
+                    'value': {}
+                }
+                
+                # Parse raw JSON for the value field if available
+                raw_json = properties.get('raw')
+                if raw_json:
+                    try:
+                        record['value'] = json.loads(raw_json)
+                    except Exception as e:
+                        logger.debug(f"Failed to parse raw JSON for {uri}: {e}")
+                        # No need to raise - just return what we have
+                
+                return record
+                
+            except Exception as e:
+                logger.error(f"Error parsing content JSON for {uri}: {e}")
+                raise Exception(f"Failed to parse content JSON for {uri}: {e}")
                 
         except Exception as e:
             logger.error(f"Error retrieving ATProto record {uri}: {str(e)}")
-            return None
+            raise e
     
     def list_atproto_records(self, nsid: str = None, labels: List[str] = None, limit: int = 100) -> List[Dict]:
         """
@@ -1298,58 +1463,97 @@ class DBManager:
             
         Returns:
             List of matching records
+            
+        Raises:
+            Exception: If there is an error listing records
         """
         try:
-            where_clauses = []
-            params = {'limit': limit}
+            # Ensure Record table exists with minimal required schema
+            self.conn.execute("""
+                CREATE NODE TABLE IF NOT EXISTS Record (
+                    uri STRING PRIMARY KEY,
+                    content STRING
+                )
+            """)
             
-            if nsid:
-                where_clauses.append("r.nsid = $nsid")
-                params['nsid'] = nsid
-            
-            if labels and len(labels) > 0:
-                label_conditions = []
-                for i, label in enumerate(labels):
-                    param_name = f'label_{i}'
-                    label_conditions.append(f"r.labels CONTAINS ${param_name}")
-                    params[param_name] = label
-                
-                where_clauses.append(f"({' AND '.join(label_conditions)})")
-            
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            
-            query = f"""
-                MATCH (r:ATRecord)
-                WHERE {where_clause}
-                RETURN r.uri as uri, r.cid as cid, r.nsid as nsid, r.raw as raw, 
-                       r.createdAt as createdAt, r.receivedAt as receivedAt, r.labels as labels
-                ORDER BY r.createdAt DESC
+            # We'll fetch all records and filter in Python since properties are now in JSON
+            query = """
+                MATCH (r:Record)
+                RETURN r.uri as uri, r.content as content
                 LIMIT $limit
             """
+            
+            params = {'limit': limit * 3}  # Fetch more to allow for filtering
             
             result = self.conn.execute(query, params)
             records = []
             
+            # Process records and apply filters in Python
             while result.has_next():
                 row = result.get_next()
-                uri, cid, nsid, raw, created_at, received_at, labels_str = row
+                uri, content_json = row
                 
-                record = {
-                    'uri': uri,
-                    'cid': cid,
-                    'nsid': nsid,
-                    'value': json.loads(raw),
-                    'createdAt': created_at,
-                    'receivedAt': received_at,
-                    'labels': labels_str.split(',') if labels_str else []
-                }
-                records.append(record)
+                if not content_json:
+                    continue
                 
+                try:
+                    # Parse properties from JSON
+                    properties = json.loads(content_json)
+                    
+                    # Apply NSID filter if specified
+                    if nsid:
+                        record_nsid = properties.get('nsid') or properties.get('collection', '')
+                        if record_nsid != nsid:
+                            continue
+                    
+                    # Apply labels filter if specified
+                    if labels and len(labels) > 0:
+                        record_labels = properties.get('labels', '').split(',') if properties.get('labels') else []
+                        # Check if all specified labels are in the record's labels
+                        if not all(label in record_labels for label in labels):
+                            continue
+                    
+                    # Create standardized record object
+                    record = {
+                        'uri': properties.get('uri', uri),
+                        'cid': properties.get('cid', ''),
+                        'nsid': properties.get('nsid', properties.get('collection', '')),
+                        'rkey': properties.get('rkey', ''),
+                        'text': properties.get('text', ''),
+                        'labels': properties.get('labels', '').split(',') if properties.get('labels') else [],
+                        'value': {},
+                    }
+                    
+                    # Add timestamps if available
+                    if 'createdAt' in properties:
+                        record['createdAt'] = properties['createdAt']
+                    if 'receivedAt' in properties:
+                        record['receivedAt'] = properties['receivedAt']
+                    
+                    # Parse raw JSON for the value field if available
+                    raw_json = properties.get('raw')
+                    if raw_json:
+                        try:
+                            record['value'] = json.loads(raw_json)
+                        except Exception as e:
+                            logger.debug(f"Failed to parse raw JSON for {uri}: {e}")
+                            # Continue with empty value instead of failing
+                    
+                    records.append(record)
+                    
+                    # Stop if we've reached the limit
+                    if len(records) >= limit:
+                        break
+                        
+                except Exception as e:
+                    logger.debug(f"Error processing record {uri}: {e}")
+                    # Skip this record and continue with the next one
+            
             return records
                 
         except Exception as e:
             logger.error(f"Error listing ATProto records: {str(e)}")
-            return []
+            raise e
     
     def query_atproto_relationships(self, source_uri: str, relationship_type: str = None, limit: int = 100) -> List[Dict]:
         """
@@ -1362,322 +1566,181 @@ class DBManager:
             
         Returns:
             List of related records with relationship information
+            
+        Raises:
+            Exception: If there is an error querying relationships
         """
         try:
+            # Ensure Record and relationship tables exist
+            self.conn.execute("""
+                CREATE NODE TABLE IF NOT EXISTS Record (
+                    uri STRING PRIMARY KEY,
+                    content STRING
+                )
+            """)
+            
+            # Create relationship tables that might be needed
+            self.conn.execute("""
+                CREATE REL TABLE IF NOT EXISTS LINKS (
+                    FROM Record TO Record,
+                    relType STRING DEFAULT 'REFERENCES',
+                    strength FLOAT DEFAULT 1.0,
+                    note STRING DEFAULT '',
+                    createdAt TIMESTAMP
+                )
+            """)
+            
+            self.conn.execute("""
+                CREATE REL TABLE IF NOT EXISTS IN_SPHERE (
+                    FROM Record TO Record,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
             relationships = []
             params = {'source_uri': source_uri, 'limit': limit}
             
-            # Determine the relationship table based on type
+            # Helper function to add relationship data from a result row
+            def add_relationship_from_row(row, rel_type):
+                src_uri, tgt_uri, rel_record_uri, created_at = row[:4]  # First 4 elements are standard
+                
+                # Create basic relationship object
+                rel = {
+                    'source_uri': src_uri,
+                    'target_uri': tgt_uri,
+                    'record_uri': rel_record_uri if rel_record_uri else None,
+                    'created_at': created_at,
+                    'type': rel_type
+                }
+                
+                # For LINKS relationship, add additional properties if available
+                if rel_type == "LINKS" and len(row) > 4:
+                    rel_type_value, strength, note = row[4:7]
+                    rel['type'] = rel_type_value if rel_type_value else "LINKS"
+                    rel['strength'] = float(strength) if strength is not None else 1.0
+                    rel['note'] = note if note else ""
+                
+                relationships.append(rel)
+            
+            # Choose query based on relationship type
             if relationship_type == "FOLLOWS":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})
-                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[:OWNS]-(source_repo:Repo)
                     MATCH (source_repo)-[rel:FOLLOWS]->(target_repo:Repo)
-                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'FOLLOWS' as rel_type
+                    MATCH (target_repo)-[:OWNS]-(target:Record)
+                    RETURN source.uri as source_uri, 
+                           target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, 
+                           rel.createdAt as created_at
                     LIMIT $limit
                 """
+                
+                result = self.conn.execute(query, params)
+                while result.has_next():
+                    add_relationship_from_row(result.get_next(), "FOLLOWS")
+                    
             elif relationship_type == "LIKES":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LIKES]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'LIKES' as rel_type
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[rel:LIKES]->(target:Record)
+                    RETURN source.uri as source_uri, 
+                           target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, 
+                           rel.createdAt as created_at
                     LIMIT $limit
                 """
+                
+                result = self.conn.execute(query, params)
+                while result.has_next():
+                    add_relationship_from_row(result.get_next(), "LIKES")
+                    
             elif relationship_type == "REPOSTS":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:REPOSTS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'REPOSTS' as rel_type
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[rel:REPOSTS]->(target:Record)
+                    RETURN source.uri as source_uri, 
+                           target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, 
+                           rel.createdAt as created_at
                     LIMIT $limit
                 """
+                
+                result = self.conn.execute(query, params)
+                while result.has_next():
+                    add_relationship_from_row(result.get_next(), "REPOSTS")
+                    
             elif relationship_type == "BLOCKS":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})
-                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[:OWNS]-(source_repo:Repo)
                     MATCH (source_repo)-[rel:BLOCKS]->(target_repo:Repo)
-                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'BLOCKS' as rel_type
+                    MATCH (target_repo)-[:OWNS]-(target:Record)
+                    RETURN source.uri as source_uri, 
+                           target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, 
+                           rel.createdAt as created_at
                     LIMIT $limit
                 """
+                
+                result = self.conn.execute(query, params)
+                while result.has_next():
+                    add_relationship_from_row(result.get_next(), "BLOCKS")
+                    
             elif relationship_type == "LINKS":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LINKS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           '' as record_uri, rel.createdAt as created_at,
-                           rel.relType as rel_type, rel.strength as strength, rel.note as note
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[rel:LINKS]->(target:Record)
+                    RETURN source.uri as source_uri, 
+                           target.uri as target_uri, 
+                           null as record_uri, 
+                           rel.createdAt as created_at,
+                           rel.relType as rel_type, 
+                           rel.strength as strength, 
+                           rel.note as note
                     LIMIT $limit
                 """
+                
+                result = self.conn.execute(query, params)
+                while result.has_next():
+                    add_relationship_from_row(result.get_next(), "LINKS")
+                    
             elif relationship_type == "IN_SPHERE":
                 query = """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:IN_SPHERE]->(sphere:ATRecord)
-                    RETURN source.uri as source_uri, sphere.uri as target_uri, 
-                           '' as record_uri, rel.createdAt as created_at,
-                           'IN_SPHERE' as rel_type
+                    MATCH (source:Record {uri: $source_uri})
+                    MATCH (source)-[rel:IN_SPHERE]->(sphere:Record)
+                    RETURN source.uri as source_uri, 
+                           sphere.uri as target_uri, 
+                           null as record_uri, 
+                           rel.createdAt as created_at
                     LIMIT $limit
                 """
-            else:
-                # Query all relationship types
-                queries = [
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})
-                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
-                    MATCH (source_repo)-[rel:FOLLOWS]->(target_repo:Repo)
-                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'FOLLOWS' as rel_type
-                    LIMIT $limit
-                    """,
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LIKES]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'LIKES' as rel_type
-                    LIMIT $limit
-                    """,
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:REPOSTS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'REPOSTS' as rel_type
-                    LIMIT $limit
-                    """,
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})
-                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
-                    MATCH (source_repo)-[rel:BLOCKS]->(target_repo:Repo)
-                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
-                           'BLOCKS' as rel_type
-                    LIMIT $limit
-                    """,
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LINKS]->(target:ATRecord)
-                    RETURN source.uri as source_uri, target.uri as target_uri, 
-                           '' as record_uri, rel.createdAt as created_at,
-                           rel.relType as rel_type, rel.strength as strength, rel.note as note
-                    LIMIT $limit
-                    """,
-                    """
-                    MATCH (source:ATRecord {uri: $source_uri})-[rel:IN_SPHERE]->(sphere:ATRecord)
-                    RETURN source.uri as source_uri, sphere.uri as target_uri, 
-                           '' as record_uri, rel.createdAt as created_at,
-                           'IN_SPHERE' as rel_type
-                    LIMIT $limit
-                    """
-                ]
                 
-                # Execute each query and combine results
-                for q in queries:
-                    try:
-                        result = self.conn.execute(q, params)
-                        while result.has_next():
-                            row = result.get_next()
-                            if len(row) == 5:
-                                source_uri, target_uri, record_uri, created_at, rel_type = row
-                                rel = {
-                                    'source_uri': source_uri,
-                                    'target_uri': target_uri,
-                                    'record_uri': record_uri,
-                                    'created_at': created_at,
-                                    'type': rel_type
-                                }
-                            else:
-                                source_uri, target_uri, record_uri, created_at, rel_type, strength, note = row
-                                rel = {
-                                    'source_uri': source_uri,
-                                    'target_uri': target_uri,
-                                    'record_uri': record_uri,
-                                    'created_at': created_at,
-                                    'type': rel_type,
-                                    'strength': strength,
-                                    'note': note
-                                }
-                            relationships.append(rel)
-                            
-                            if len(relationships) >= limit:
-                                break
-                                
-                        if len(relationships) >= limit:
-                            break
-                            
-                    except Exception as e:
-                        logger.error(f"Error executing relationship query: {str(e)}")
-                        continue
-                        
-                # Sort by created_at
-                relationships.sort(key=lambda r: r.get('created_at', ''), reverse=True)
-                
-                # Limit to requested number
-                relationships = relationships[:limit]
-                
-                return relationships
-            
-            # Execute the specific relationship query if a type was specified
-            if relationship_type:
                 result = self.conn.execute(query, params)
-                
                 while result.has_next():
-                    row = result.get_next()
-                    if len(row) == 5:
-                        source_uri, target_uri, record_uri, created_at, rel_type = row
-                        rel = {
-                            'source_uri': source_uri,
-                            'target_uri': target_uri,
-                            'record_uri': record_uri,
-                            'created_at': created_at,
-                            'type': rel_type
-                        }
-                    else:
-                        source_uri, target_uri, record_uri, created_at, rel_type, strength, note = row
-                        rel = {
-                            'source_uri': source_uri,
-                            'target_uri': target_uri,
-                            'record_uri': record_uri,
-                            'created_at': created_at,
-                            'type': rel_type,
-                            'strength': strength,
-                            'note': note
-                        }
-                    relationships.append(rel)
+                    add_relationship_from_row(result.get_next(), "IN_SPHERE")
+                    
+            else:
+                # If no specific relationship type, try all of them in separate queries
+                for rel_type in ["FOLLOWS", "LIKES", "REPOSTS", "BLOCKS", "LINKS", "IN_SPHERE"]:
+                    try:
+                        rel_results = self.query_atproto_relationships(source_uri, rel_type, limit)
+                        relationships.extend(rel_results)
+                        if len(relationships) >= limit:
+                            relationships = relationships[:limit]
+                            break
+                    except Exception as rel_error:
+                        logger.debug(f"Error querying {rel_type} relationships: {rel_error}")
+                        # Continue with other relationship types even if one fails
+                
+                # Sort by created_at if available
+                relationships.sort(
+                    key=lambda r: r.get('created_at', ''), 
+                    reverse=True
+                )
             
             return relationships
-                
+            
         except Exception as e:
             logger.error(f"Error querying ATProto relationships for {source_uri}: {str(e)}")
-            return []
-
-
-# Function to integrate with record_manager.py
-def mirror_record_to_db(record_manager, db_manager, collection: str, record: Dict, rkey: str = None, sphere_uri: str = None):
-    """
-    Mirror a record from ATProto to the database.
-    
-    This function can be called after creating a record with record_manager
-    to ensure it's also stored in the database.
-    
-    Args:
-        record_manager: The RecordManager instance
-        db_manager: The DBManager instance
-        collection: The collection the record belongs to
-        record: The record data
-        rkey: The record key identifier (optional)
-        sphere_uri: The URI of the sphere this record belongs to (optional)
-    """
-    # Create the appropriate URI format
-    did = record_manager.client.me.did
-    if rkey is None:
-        # If rkey is not provided, it might be in the response from create_record
-        if hasattr(record, 'uri'):
-            uri = record.uri
-            cid = record.cid
-        else:
-            # Handle case where we don't have an rkey
-            logger.warning("No rkey provided and record object doesn't have uri attribute")
-            return None
-    else:
-        uri = f"at://{did}/{collection}/{rkey}"
-        cid = ""  # We might not have the CID in this case
-    
-    # Store in database
-    db_manager.store_record(
-        collection=collection,
-        record=record,
-        uri=uri,
-        cid=cid,
-        author_did=did,
-        rkey=rkey,
-        sphere_uri=sphere_uri
-    )
-    
-    return uri
-
-# Helper function to process ATProto events from the jetstream
-def process_atproto_event(db_manager, event: Dict) -> bool:
-    """
-    Process an ATProto event from the jetstream and store it in the database.
-    
-    Args:
-        db_manager: The DBManager instance
-        event: The event data from the jetstream
-        
-    Returns:
-        True if the event was processed successfully, False otherwise
-    """
-    try:
-        # Extract event data
-        author_did = event.get("did")
-        if not author_did:
-            logger.error("No author DID found in event")
-            return False
-        
-        # Handle create operation
-        if (event.get("kind") == "commit" and 
-            event.get("commit", {}).get("operation") == "create"):
-            
-            # Extract record data
-            commit = event.get("commit", {})
-            collection = commit.get("collection")
-            rkey = commit.get("rkey")
-            record = commit.get("record", {})
-            cid = commit.get("cid", "")
-            
-            # Skip if missing required data
-            if not collection or not rkey or not record:
-                logger.warning(f"Missing required data in event: collection={collection}, rkey={rkey}")
-                return False
-            
-            # Construct URI
-            uri = f"at://{author_did}/{collection}/{rkey}"
-            
-            # Determine labels based on collection
-            labels = ["ATRecord"]
-            
-            if collection == "app.bsky.feed.post":
-                labels.append("Post")
-            elif "me.comind" in collection:
-                if "blip.concept" in collection:
-                    labels.extend(["Blip", "Concept"])
-                elif "blip.thought" in collection:
-                    labels.extend(["Blip", "Thought"])
-                elif "blip.emotion" in collection:
-                    labels.extend(["Blip", "Emotion"])
-                elif "sphere.core" in collection:
-                    labels.append("Core")
-            
-            # Store the record
-            success = db_manager.store_atproto_record(
-                uri=uri,
-                cid=cid,
-                nsid=collection,
-                record=record,
-                author_did=author_did,
-                rkey=rkey,
-                labels=labels
-            )
-            
-            return success
-        
-        # Handle other operations (delete, update)
-        elif (event.get("kind") == "commit" and 
-              event.get("commit", {}).get("operation") in ["delete", "update"]):
-            
-            # TODO: Implement handling for delete and update operations
-            logger.info(f"Event operation {event.get('commit', {}).get('operation')} not yet implemented")
-            return False
-        
-        else:
-            logger.warning(f"Unknown event kind or operation: {event.get('kind')} / {event.get('commit', {}).get('operation')}")
-            return False
-            
-    except Exception as e:
-        logger.error(f"Error processing ATProto event: {str(e)}")
-        return False
+            raise e
