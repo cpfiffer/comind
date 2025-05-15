@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 import asyncio
-from typing import List, Optional, Set, Any
+from typing import List, Optional, Set, Any, Dict
 import websockets
 import time
 import logging
@@ -27,6 +27,7 @@ from src.lexicon_utils import (
 )
 import src.structured_gen as structured_gen
 from src.record_manager import RecordManager
+from src.db_manager import DBManager, process_atproto_event
 from atproto_client import Client
 
 import yaml
@@ -272,6 +273,8 @@ async def process_event(
         thread_depth: int = 15,
         user_info_cache: UserInfoCache = None,
         comind: Comind = None,
+        db_manager: DBManager = None,
+        original_event: Dict = None  # Add parameter to receive the original event
     ) -> None:
     """Process an event and generate thoughts, emotions, and concepts for it"""
     try:
@@ -430,6 +433,41 @@ async def process_event(
             from_refs=list_of_strong_refs # Pass the collected references
         )
 
+        # Also store the event in KuzuDB if a db_manager is provided
+        if db_manager is not None:
+            try:
+                # If we have the original event object, use it
+                if original_event:
+                    process_atproto_event(db_manager, original_event)
+                else:
+                    # Otherwise reconstruct a minimal event from the parameters we have
+                    # Extract rkey from post_uri (last part after the last /)
+                    rkey = post_uri.split('/')[-1]
+                    # Extract collection from event_kind
+                    collection = event_kind
+                    
+                    # Get the record data from the target_post
+                    record = {}
+                    if hasattr(target_post, 'record'):
+                        record = target_post.record.model_dump()
+                    
+                    # Construct an event object that process_atproto_event can handle
+                    reconstructed_event = {
+                        "did": author_did,
+                        "kind": "commit",
+                        "commit": {
+                            "operation": "create",
+                            "collection": collection,
+                            "rkey": rkey,
+                            "record": record,
+                            "cid": post_cid
+                        }
+                    }
+                    process_atproto_event(db_manager, reconstructed_event)
+            except Exception as db_error:
+                logger.error(f"Error storing event in KuzuDB: {db_error}")
+                # Don't raise the exception - we still want to process the event for comind
+
     except Exception as e:
         logger.error(f"Error processing post {post_uri}: {e}")
         raise e
@@ -439,7 +477,8 @@ async def connect_to_jetstream(
         activated_dids_file: str,
         jetstream_host: str = JETSTREAM_HOST,
         thread_depth: int = 15,
-        comind: Comind = None
+        comind: Comind = None,
+        db_manager: DBManager = None
     ) -> None:
     """Connect to Jetstream and process incoming messages"""
     global activated_dids
@@ -516,6 +555,14 @@ async def connect_to_jetstream(
                             logger.warning(f"No author DID found in event: {event}")
                             raise Exception(f"No author DID found in event: {event}")
 
+                        # Also store the event in KuzuDB if a db_manager is provided
+                        if db_manager is not None:
+                            try:
+                                process_atproto_event(db_manager, event)
+                            except Exception as db_error:
+                                logger.error(f"Error storing event in KuzuDB: {db_error}")
+                                # Don't raise the exception - we still want to process the event for comind
+
                         # Check if it's a post creation event
                         if (event.get("kind") == "commit" and
                             event.get("commit", {}).get("operation") == "create"):
@@ -546,7 +593,9 @@ async def connect_to_jetstream(
                                     root_post_uri=root_post_uri,
                                     thread_depth=thread_depth,
                                     user_info_cache=user_info_cache,
-                                    comind=comind
+                                    comind=comind,
+                                    db_manager=db_manager,
+                                    original_event=event
                                 )
                             elif collection == "app.bsky.feed.like":
                                 # Extract post URI and CID
@@ -562,7 +611,9 @@ async def connect_to_jetstream(
                                     post_cid,
                                     thread_depth=thread_depth,
                                     user_info_cache=user_info_cache,
-                                    comind=comind
+                                    comind=comind,
+                                    db_manager=db_manager,
+                                    original_event=event
                                 )
                             else:
                                 logger.warning(f"Unknown collection message received: {collection}")
@@ -639,6 +690,10 @@ async def main():
                         help="Sphere to attach comind records to. Default is to not use a sphere.")
     parser.add_argument("--comind", "-c", type=str, default=None,
                         help="Comind to use for processing. Required.")
+    parser.add_argument("--db-path", type=str, default="./demo_db",
+                        help="Path to the Kuzu database directory. Default is './demo_db'.")
+    parser.add_argument("--disable-db", action="store_true",
+                        help="Disable storing ATProto records in Kuzu database.")
 
     args = parser.parse_args()
 
@@ -728,6 +783,18 @@ async def main():
         comind.core_perspective = sphere_to_use.value["text"]
     else:
         logger.warning("No sphere provided. Comind will not be attached to any sphere.")
+    
+    # Initialize the database manager if not disabled
+    db_manager = None
+    if not args.disable_db:
+        try:
+            logger.info(f"Initializing Kuzu database at {args.db_path}")
+            db_manager = DBManager(args.db_path)
+            db_manager.setup_schema()
+            logger.info("Kuzu database initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing Kuzu database: {e}")
+            logger.warning("Continuing without database integration")
 
     try:
         await connect_to_jetstream(
@@ -735,7 +802,8 @@ async def main():
             args.dids_file,
             args.jetstream_host,
             thread_depth=args.thread_depth,
-            comind=comind
+            comind=comind,
+            db_manager=db_manager
         )
     except KeyboardInterrupt:
         logger.info("Shutting down")

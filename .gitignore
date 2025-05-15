@@ -7,9 +7,6 @@ user_info_cache.json
 *.pyc
 README_files/
 README.html
-<<<<<<< HEAD
 
 **/CLAUDE.local.md
-=======
-.aider*
->>>>>>> 391d88205f72434bf84f317e9452998bf10cebc7
+demo_db/

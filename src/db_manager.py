@@ -69,6 +69,30 @@ class DBManager:
                 )
             """)
             
+            # Create Repo node table
+            self.conn.execute("""
+                CREATE NODE TABLE Repo (
+                    did STRING PRIMARY KEY,
+                    handle STRING,
+                    receivedAt TIMESTAMP
+                )
+            """)
+            
+            # Create ATRecord node table (base for all record types)
+            self.conn.execute("""
+                CREATE NODE TABLE ATRecord (
+                    uri STRING PRIMARY KEY,
+                    cid STRING,
+                    nsid STRING,
+                    rkey STRING,
+                    createdAt TIMESTAMP,
+                    receivedAt TIMESTAMP,
+                    raw STRING,
+                    text STRING,
+                    labels STRING
+                )
+            """)
+            
             # Create Record node table (base for all record types)
             self.conn.execute("""
                 CREATE NODE TABLE Record (
@@ -133,6 +157,14 @@ class DBManager:
                 )
             """)
             
+            # OWNS relationship between Repo and ATRecord
+            self.conn.execute("""
+                CREATE REL TABLE OWNS (
+                    FROM Repo TO ATRecord,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
             # IN_SPHERE relationship between Record and Sphere
             self.conn.execute("""
                 CREATE REL TABLE IN_SPHERE (
@@ -156,6 +188,42 @@ class DBManager:
             self.conn.execute("""
                 CREATE REL TABLE TARGET (
                     FROM Record TO Record,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
+            # FOLLOWS relationship between ATRecords
+            self.conn.execute("""
+                CREATE REL TABLE FOLLOWS (
+                    FROM ATRecord TO ATRecord, 
+                    sourceRecord STRING,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
+            # LIKES relationship between ATRecords
+            self.conn.execute("""
+                CREATE REL TABLE LIKES (
+                    FROM ATRecord TO ATRecord,
+                    sourceRecord STRING,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
+            # REPOSTS relationship between ATRecords
+            self.conn.execute("""
+                CREATE REL TABLE REPOSTS (
+                    FROM ATRecord TO ATRecord,
+                    sourceRecord STRING,
+                    createdAt TIMESTAMP
+                )
+            """)
+            
+            # BLOCKS relationship between ATRecords
+            self.conn.execute("""
+                CREATE REL TABLE BLOCKS (
+                    FROM ATRecord TO ATRecord,
+                    sourceRecord STRING,
                     createdAt TIMESTAMP
                 )
             """)
@@ -901,6 +969,591 @@ class DBManager:
         except Exception as e:
             logger.error(f"Error in basic record search: {str(e)}")
             return []
+    
+    def store_atproto_record(self, uri: str, cid: str, nsid: str, record: Dict, 
+                        author_did: str, rkey: str, labels: List[str] = None):
+        """
+        Store an ATProto record from the jetstream in the database.
+        
+        Args:
+            uri: The URI of the record
+            cid: The content identifier of the record
+            nsid: The NSID (namespace ID) of the record (e.g., app.bsky.feed.post)
+            record: The record data as a dictionary
+            author_did: The DID of the record's author/repo owner
+            rkey: The record key identifier
+            labels: Additional labels to apply to the node (e.g., 'Blip', 'Concept')
+        """
+        try:
+            # Convert record to JSON string
+            record_json = json.dumps(record)
+            
+            # Extract text content if available (depends on record type)
+            text = ""
+            if nsid == "app.bsky.feed.post" and "text" in record:
+                text = record.get("text", "")
+            elif "me.comind" in nsid:
+                # Extract text from different comind record types
+                if "blip.concept" in nsid and "generated" in record and "text" in record["generated"]:
+                    text = record["generated"]["text"]
+                elif "blip.thought" in nsid and "generated" in record and "text" in record["generated"]:
+                    text = record["generated"]["text"]
+                elif "blip.emotion" in nsid and "generated" in record and "text" in record["generated"]:
+                    text = record["generated"]["text"]
+                elif "sphere.core" in nsid:
+                    text = record.get("text", "")
+            
+            # Format dates
+            created_at = datetime.now()
+            if "createdAt" in record:
+                try:
+                    if isinstance(record["createdAt"], str):
+                        created_at = datetime.fromisoformat(record["createdAt"].replace('Z', '+00:00'))
+                except Exception as e:
+                    logger.warning(f"Error parsing createdAt timestamp: {e}. Using current time.")
+            
+            received_at = datetime.now()
+            
+            # Convert labels to string for storage
+            labels_str = ""
+            if labels:
+                labels_str = ",".join(labels)
+            
+            # First, ensure the repo exists
+            self.conn.execute("""
+                MERGE (r:Repo {did: $did})
+                SET r.receivedAt = $receivedAt
+            """, {
+                'did': author_did,
+                'receivedAt': received_at
+            })
+            
+            # Store the ATRecord
+            self.conn.execute("""
+                MERGE (r:ATRecord {uri: $uri})
+                SET r.cid = $cid,
+                    r.nsid = $nsid,
+                    r.rkey = $rkey,
+                    r.createdAt = $createdAt,
+                    r.receivedAt = $receivedAt,
+                    r.raw = $raw,
+                    r.text = $text,
+                    r.labels = $labels
+            """, {
+                'uri': uri,
+                'cid': cid,
+                'nsid': nsid,
+                'rkey': rkey,
+                'createdAt': created_at,
+                'receivedAt': received_at,
+                'raw': record_json,
+                'text': text,
+                'labels': labels_str
+            })
+            
+            # Create OWNS relationship between repo and record
+            self.conn.execute("""
+                MATCH (repo:Repo {did: $did})
+                MATCH (record:ATRecord {uri: $uri})
+                MERGE (repo)-[rel:OWNS]->(record)
+                SET rel.createdAt = $createdAt
+            """, {
+                'did': author_did,
+                'uri': uri,
+                'createdAt': received_at
+            })
+            
+            # Handle special record types that create relationships
+            if nsid == "app.bsky.graph.follow" and "subject" in record:
+                target_did = record["subject"]
+                # Find the target repo
+                self.conn.execute("""
+                    MERGE (target:Repo {did: $target_did})
+                """, {
+                    'target_did': target_did
+                })
+                
+                # Create FOLLOWS relationship
+                self.conn.execute("""
+                    MATCH (source:ATRecord {uri: $uri})
+                    MATCH (source_repo:Repo {did: $source_did})
+                    MATCH (target_repo:Repo {did: $target_did})
+                    MERGE (source_repo)-[rel:FOLLOWS]->(target_repo)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'source_did': author_did,
+                    'target_did': target_did,
+                    'createdAt': created_at
+                })
+            
+            elif nsid == "app.bsky.feed.like" and "subject" in record:
+                target_uri = record["subject"]["uri"]
+                # Create LIKES relationship
+                self.conn.execute("""
+                    MATCH (source:ATRecord {uri: $uri})
+                    MATCH (target:ATRecord {uri: $target_uri})
+                    MERGE (source)-[rel:LIKES]->(target)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'target_uri': target_uri,
+                    'createdAt': created_at
+                })
+            
+            elif nsid == "app.bsky.feed.repost" and "subject" in record:
+                target_uri = record["subject"]["uri"]
+                # Create REPOSTS relationship
+                self.conn.execute("""
+                    MATCH (source:ATRecord {uri: $uri})
+                    MATCH (target:ATRecord {uri: $target_uri})
+                    MERGE (source)-[rel:REPOSTS]->(target)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'target_uri': target_uri,
+                    'createdAt': created_at
+                })
+            
+            elif nsid == "app.bsky.graph.block" and "subject" in record:
+                target_did = record["subject"]
+                # Find the target repo
+                self.conn.execute("""
+                    MERGE (target:Repo {did: $target_did})
+                """, {
+                    'target_did': target_did
+                })
+                
+                # Create BLOCKS relationship
+                self.conn.execute("""
+                    MATCH (source:ATRecord {uri: $uri})
+                    MATCH (source_repo:Repo {did: $source_did})
+                    MATCH (target_repo:Repo {did: $target_did})
+                    MERGE (source_repo)-[rel:BLOCKS]->(target_repo)
+                    SET rel.sourceRecord = $uri,
+                        rel.createdAt = $createdAt
+                """, {
+                    'uri': uri,
+                    'source_did': author_did,
+                    'target_did': target_did,
+                    'createdAt': created_at
+                })
+            
+            # Handle Comind specific records
+            if "me.comind" in nsid:
+                # Add appropriate label based on record type
+                if "blip.concept" in nsid:
+                    self.conn.execute("""
+                        MATCH (r:ATRecord {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Concept'
+                                         WHEN r.labels CONTAINS 'Concept' THEN r.labels
+                                         ELSE r.labels + ',Blip,Concept'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "blip.thought" in nsid:
+                    self.conn.execute("""
+                        MATCH (r:ATRecord {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Thought'
+                                         WHEN r.labels CONTAINS 'Thought' THEN r.labels
+                                         ELSE r.labels + ',Blip,Thought'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "blip.emotion" in nsid:
+                    self.conn.execute("""
+                        MATCH (r:ATRecord {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'ATRecord,Blip,Emotion'
+                                         WHEN r.labels CONTAINS 'Emotion' THEN r.labels
+                                         ELSE r.labels + ',Blip,Emotion'
+                                       END
+                    """, {'uri': uri})
+                
+                elif "sphere.core" in nsid:
+                    self.conn.execute("""
+                        MATCH (r:ATRecord {uri: $uri})
+                        SET r.labels = CASE 
+                                         WHEN r.labels = '' THEN 'ATRecord,Core'
+                                         WHEN r.labels CONTAINS 'Core' THEN r.labels
+                                         ELSE r.labels + ',Core'
+                                       END
+                    """, {'uri': uri})
+                
+                # Handle "from" records that create references
+                if "from" in record and isinstance(record["from"], list):
+                    for ref in record["from"]:
+                        if "uri" in ref:
+                            from_uri = ref["uri"]
+                            self.conn.execute("""
+                                MATCH (target:ATRecord {uri: $uri})
+                                MERGE (source:ATRecord {uri: $from_uri})
+                                MERGE (source)-[rel:LINKS]->(target)
+                                SET rel.relType = 'REFERENCES',
+                                    rel.createdAt = $createdAt
+                            """, {
+                                'uri': uri,
+                                'from_uri': from_uri,
+                                'createdAt': created_at
+                            })
+                
+                # Handle relationship links
+                if "relationship.link" in nsid:
+                    if "target" in record:
+                        target_uri = record["target"]
+                        self.conn.execute("""
+                            MATCH (source:ATRecord {uri: $uri})
+                            MERGE (target:ATRecord {uri: $target_uri})
+                            MERGE (source)-[rel:LINKS]->(target)
+                            SET rel.relType = $rel_type,
+                                rel.strength = $strength,
+                                rel.note = $note,
+                                rel.createdAt = $createdAt
+                        """, {
+                            'uri': uri,
+                            'target_uri': target_uri,
+                            'rel_type': record.get("relationship", "REFERENCES"),
+                            'strength': record.get("strength", 1.0),
+                            'note': record.get("note", ""),
+                            'createdAt': created_at
+                        })
+                
+                # Handle sphere assignment
+                if "relationship.sphere" in nsid and "sphere_uri" in record and "target" in record:
+                    sphere_uri = record["sphere_uri"]
+                    target_uri = record["target"]["uri"]
+                    
+                    self.conn.execute("""
+                        MATCH (record:ATRecord {uri: $target_uri})
+                        MATCH (sphere:ATRecord {uri: $sphere_uri})
+                        MERGE (sphere)-[rel:CONGREGATES]->(record)
+                        SET rel.createdAt = $createdAt
+                    """, {
+                        'target_uri': target_uri,
+                        'sphere_uri': sphere_uri,
+                        'createdAt': created_at
+                    })
+            
+            logger.debug(f"Stored ATProto record: {nsid}/{rkey}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error storing ATProto record {uri}: {str(e)}")
+            logger.exception(e)
+            return False
+    
+    def get_atproto_record(self, uri: str) -> Optional[Dict]:
+        """
+        Retrieve an ATProto record by its URI.
+        
+        Args:
+            uri: The URI of the record to retrieve
+            
+        Returns:
+            The record as a dictionary if found, None otherwise
+        """
+        try:
+            query = """
+                MATCH (r:ATRecord {uri: $uri})
+                RETURN r.uri as uri, r.cid as cid, r.nsid as nsid, r.raw as raw, 
+                       r.createdAt as createdAt, r.receivedAt as receivedAt, r.labels as labels
+            """
+            
+            result = self.conn.execute(query, {'uri': uri})
+            
+            if result.has_next():
+                row = result.get_next()
+                uri, cid, nsid, raw, created_at, received_at, labels = row
+                
+                record = {
+                    'uri': uri,
+                    'cid': cid,
+                    'nsid': nsid,
+                    'value': json.loads(raw),
+                    'createdAt': created_at,
+                    'receivedAt': received_at,
+                    'labels': labels.split(',') if labels else []
+                }
+                return record
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error retrieving ATProto record {uri}: {str(e)}")
+            return None
+    
+    def list_atproto_records(self, nsid: str = None, labels: List[str] = None, limit: int = 100) -> List[Dict]:
+        """
+        List ATProto records with optional filtering by nsid and labels.
+        
+        Args:
+            nsid: Optional namespace ID to filter by
+            labels: Optional list of labels to filter by
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of matching records
+        """
+        try:
+            where_clauses = []
+            params = {'limit': limit}
+            
+            if nsid:
+                where_clauses.append("r.nsid = $nsid")
+                params['nsid'] = nsid
+            
+            if labels and len(labels) > 0:
+                label_conditions = []
+                for i, label in enumerate(labels):
+                    param_name = f'label_{i}'
+                    label_conditions.append(f"r.labels CONTAINS ${param_name}")
+                    params[param_name] = label
+                
+                where_clauses.append(f"({' AND '.join(label_conditions)})")
+            
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            query = f"""
+                MATCH (r:ATRecord)
+                WHERE {where_clause}
+                RETURN r.uri as uri, r.cid as cid, r.nsid as nsid, r.raw as raw, 
+                       r.createdAt as createdAt, r.receivedAt as receivedAt, r.labels as labels
+                ORDER BY r.createdAt DESC
+                LIMIT $limit
+            """
+            
+            result = self.conn.execute(query, params)
+            records = []
+            
+            while result.has_next():
+                row = result.get_next()
+                uri, cid, nsid, raw, created_at, received_at, labels_str = row
+                
+                record = {
+                    'uri': uri,
+                    'cid': cid,
+                    'nsid': nsid,
+                    'value': json.loads(raw),
+                    'createdAt': created_at,
+                    'receivedAt': received_at,
+                    'labels': labels_str.split(',') if labels_str else []
+                }
+                records.append(record)
+                
+            return records
+                
+        except Exception as e:
+            logger.error(f"Error listing ATProto records: {str(e)}")
+            return []
+    
+    def query_atproto_relationships(self, source_uri: str, relationship_type: str = None, limit: int = 100) -> List[Dict]:
+        """
+        Query relationships from a source ATProto record.
+        
+        Args:
+            source_uri: The URI of the source record
+            relationship_type: Optional relationship type to filter by (FOLLOWS, LIKES, REPOSTS, etc.)
+            limit: Maximum number of relationships to return
+            
+        Returns:
+            List of related records with relationship information
+        """
+        try:
+            relationships = []
+            params = {'source_uri': source_uri, 'limit': limit}
+            
+            # Determine the relationship table based on type
+            if relationship_type == "FOLLOWS":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})
+                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source_repo)-[rel:FOLLOWS]->(target_repo:Repo)
+                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'FOLLOWS' as rel_type
+                    LIMIT $limit
+                """
+            elif relationship_type == "LIKES":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LIKES]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'LIKES' as rel_type
+                    LIMIT $limit
+                """
+            elif relationship_type == "REPOSTS":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:REPOSTS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'REPOSTS' as rel_type
+                    LIMIT $limit
+                """
+            elif relationship_type == "BLOCKS":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})
+                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source_repo)-[rel:BLOCKS]->(target_repo:Repo)
+                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'BLOCKS' as rel_type
+                    LIMIT $limit
+                """
+            elif relationship_type == "LINKS":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LINKS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           '' as record_uri, rel.createdAt as created_at,
+                           rel.relType as rel_type, rel.strength as strength, rel.note as note
+                    LIMIT $limit
+                """
+            elif relationship_type == "IN_SPHERE":
+                query = """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:IN_SPHERE]->(sphere:ATRecord)
+                    RETURN source.uri as source_uri, sphere.uri as target_uri, 
+                           '' as record_uri, rel.createdAt as created_at,
+                           'IN_SPHERE' as rel_type
+                    LIMIT $limit
+                """
+            else:
+                # Query all relationship types
+                queries = [
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})
+                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source_repo)-[rel:FOLLOWS]->(target_repo:Repo)
+                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'FOLLOWS' as rel_type
+                    LIMIT $limit
+                    """,
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LIKES]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'LIKES' as rel_type
+                    LIMIT $limit
+                    """,
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:REPOSTS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'REPOSTS' as rel_type
+                    LIMIT $limit
+                    """,
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})
+                    MATCH (source_repo:Repo)<-[:OWNS]-(source)
+                    MATCH (source_repo)-[rel:BLOCKS]->(target_repo:Repo)
+                    MATCH (target_repo)-[:OWNS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           rel.sourceRecord as record_uri, rel.createdAt as created_at,
+                           'BLOCKS' as rel_type
+                    LIMIT $limit
+                    """,
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:LINKS]->(target:ATRecord)
+                    RETURN source.uri as source_uri, target.uri as target_uri, 
+                           '' as record_uri, rel.createdAt as created_at,
+                           rel.relType as rel_type, rel.strength as strength, rel.note as note
+                    LIMIT $limit
+                    """,
+                    """
+                    MATCH (source:ATRecord {uri: $source_uri})-[rel:IN_SPHERE]->(sphere:ATRecord)
+                    RETURN source.uri as source_uri, sphere.uri as target_uri, 
+                           '' as record_uri, rel.createdAt as created_at,
+                           'IN_SPHERE' as rel_type
+                    LIMIT $limit
+                    """
+                ]
+                
+                # Execute each query and combine results
+                for q in queries:
+                    try:
+                        result = self.conn.execute(q, params)
+                        while result.has_next():
+                            row = result.get_next()
+                            if len(row) == 5:
+                                source_uri, target_uri, record_uri, created_at, rel_type = row
+                                rel = {
+                                    'source_uri': source_uri,
+                                    'target_uri': target_uri,
+                                    'record_uri': record_uri,
+                                    'created_at': created_at,
+                                    'type': rel_type
+                                }
+                            else:
+                                source_uri, target_uri, record_uri, created_at, rel_type, strength, note = row
+                                rel = {
+                                    'source_uri': source_uri,
+                                    'target_uri': target_uri,
+                                    'record_uri': record_uri,
+                                    'created_at': created_at,
+                                    'type': rel_type,
+                                    'strength': strength,
+                                    'note': note
+                                }
+                            relationships.append(rel)
+                            
+                            if len(relationships) >= limit:
+                                break
+                                
+                        if len(relationships) >= limit:
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"Error executing relationship query: {str(e)}")
+                        continue
+                        
+                # Sort by created_at
+                relationships.sort(key=lambda r: r.get('created_at', ''), reverse=True)
+                
+                # Limit to requested number
+                relationships = relationships[:limit]
+                
+                return relationships
+            
+            # Execute the specific relationship query if a type was specified
+            if relationship_type:
+                result = self.conn.execute(query, params)
+                
+                while result.has_next():
+                    row = result.get_next()
+                    if len(row) == 5:
+                        source_uri, target_uri, record_uri, created_at, rel_type = row
+                        rel = {
+                            'source_uri': source_uri,
+                            'target_uri': target_uri,
+                            'record_uri': record_uri,
+                            'created_at': created_at,
+                            'type': rel_type
+                        }
+                    else:
+                        source_uri, target_uri, record_uri, created_at, rel_type, strength, note = row
+                        rel = {
+                            'source_uri': source_uri,
+                            'target_uri': target_uri,
+                            'record_uri': record_uri,
+                            'created_at': created_at,
+                            'type': rel_type,
+                            'strength': strength,
+                            'note': note
+                        }
+                    relationships.append(rel)
+            
+            return relationships
+                
+        except Exception as e:
+            logger.error(f"Error querying ATProto relationships for {source_uri}: {str(e)}")
+            return []
 
 
 # Function to integrate with record_manager.py
@@ -946,3 +1599,85 @@ def mirror_record_to_db(record_manager, db_manager, collection: str, record: Dic
     )
     
     return uri
+
+# Helper function to process ATProto events from the jetstream
+def process_atproto_event(db_manager, event: Dict) -> bool:
+    """
+    Process an ATProto event from the jetstream and store it in the database.
+    
+    Args:
+        db_manager: The DBManager instance
+        event: The event data from the jetstream
+        
+    Returns:
+        True if the event was processed successfully, False otherwise
+    """
+    try:
+        # Extract event data
+        author_did = event.get("did")
+        if not author_did:
+            logger.error("No author DID found in event")
+            return False
+        
+        # Handle create operation
+        if (event.get("kind") == "commit" and 
+            event.get("commit", {}).get("operation") == "create"):
+            
+            # Extract record data
+            commit = event.get("commit", {})
+            collection = commit.get("collection")
+            rkey = commit.get("rkey")
+            record = commit.get("record", {})
+            cid = commit.get("cid", "")
+            
+            # Skip if missing required data
+            if not collection or not rkey or not record:
+                logger.warning(f"Missing required data in event: collection={collection}, rkey={rkey}")
+                return False
+            
+            # Construct URI
+            uri = f"at://{author_did}/{collection}/{rkey}"
+            
+            # Determine labels based on collection
+            labels = ["ATRecord"]
+            
+            if collection == "app.bsky.feed.post":
+                labels.append("Post")
+            elif "me.comind" in collection:
+                if "blip.concept" in collection:
+                    labels.extend(["Blip", "Concept"])
+                elif "blip.thought" in collection:
+                    labels.extend(["Blip", "Thought"])
+                elif "blip.emotion" in collection:
+                    labels.extend(["Blip", "Emotion"])
+                elif "sphere.core" in collection:
+                    labels.append("Core")
+            
+            # Store the record
+            success = db_manager.store_atproto_record(
+                uri=uri,
+                cid=cid,
+                nsid=collection,
+                record=record,
+                author_did=author_did,
+                rkey=rkey,
+                labels=labels
+            )
+            
+            return success
+        
+        # Handle other operations (delete, update)
+        elif (event.get("kind") == "commit" and 
+              event.get("commit", {}).get("operation") in ["delete", "update"]):
+            
+            # TODO: Implement handling for delete and update operations
+            logger.info(f"Event operation {event.get('commit', {}).get('operation')} not yet implemented")
+            return False
+        
+        else:
+            logger.warning(f"Unknown event kind or operation: {event.get('kind')} / {event.get('commit', {}).get('operation')}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error processing ATProto event: {str(e)}")
+        return False
