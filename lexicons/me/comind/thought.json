@@ -1,0 +1,93 @@
+{
+  "lexicon": 1,
+  "id": "me.comind.thought",
+  "revision": 2,
+  "description": "A thought node in the comind network. This references a generated thought and provides additional metadata.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt", "generated"],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "generated": {
+            "type": "ref",
+            "ref": "#generated",
+            "description": "The generated thought."
+          },
+          "from": {
+            "type": "array",
+            "items": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef"
+            },
+            "description": "An array of strong references to records that were inputs to this thought."
+          },
+          "to": {
+            "type": "array",
+            "items": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef"
+            },
+            "description": "An array of strong references to records that were generated or derived from this thought."
+          }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "required": ["thoughtType", "text", "evidence", "alternatives"],
+      "properties": {
+        "thoughtType": {
+          "type": "string",
+          "description": "The type of thought. May be one of the following: analysis, prediction, evaluation, comparison, inference, critique, integration, speculation, clarification, metacognition, observation, reflection, hypothesis, question, synthesis, correction.",
+          "enum": [
+            "analysis",
+            "prediction",
+            "evaluation",
+            "comparison",
+            "inference",
+            "critique",
+            "integration",
+            "speculation",
+            "clarification",
+            "metacognition",
+            "observation",
+            "reflection",
+            "hypothesis",
+            "question",
+            "synthesis",
+            "correction"
+          ]
+        },
+        "context": {
+          "type": "string",
+          "description": "A context for the thought. This is a short description of the situation or topic that the thought is about."
+        },
+        "text": {
+          "type": "string",
+          "description": "The text of the thought."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of evidence or sources that support the thought."
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of alternative thoughts or interpretations of the thought."
+        }
+      }
+    }
+  }
+}

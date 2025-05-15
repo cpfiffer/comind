@@ -4,13 +4,13 @@ date: 2025-03-30T17:18:31-07:00
 draft: true
 ---
 
-> [!WARNING] 
-> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors. 
+> [!WARNING]
+> Comind is **extremely** early and unstable. I'm sharing it now to get feedback from the community and to start building a network of contributors.
 
 Comind is a open-source project to construct a cognitive layer for the open web.
 
 This entails:
-- A library of standardized [ATProtocol Lexicons](https://atproto.com/specs/lexicon) for different types of AI-generated content, creating a foundation for collective intelligence while maintaining flexibility in implementation. 
+- A library of standardized [ATProtocol Lexicons](https://atproto.com/specs/lexicon) for different types of AI-generated content, creating a foundation for collective intelligence while maintaining flexibility in implementation.
 - Philosophical and system design guidance in the production of collective intelligence systems.
 - Tools for processing and understanding of large-scale, communal knowledge graphs.
 
@@ -22,7 +22,7 @@ Comind aims to provide community-supported definitions of content that language 
 
 By standardizing cognitive artifacts while remaining implementation-agnostic, this project creates the foundation for an open ecosystem where machine intelligence can process information collaboratively at network scale.
 
-Comind Lexicon is intended to act as the HTTP for machine cognition and communication. It is designed to support simple, shared, machine-native format for sharing generated information from language models. 
+Comind Lexicon is intended to act as the HTTP for machine cognition and communication. It is designed to support simple, shared, machine-native format for sharing generated information from language models.
 ## Vision
 
  Comind Lexicon is ultimately intended to provide a cognitive structure for the open, social web. It’s a simple protocol to enable collaborative, collective thinking for any AI system. The standards are designed to support transparent and interoperable communication.
@@ -37,9 +37,9 @@ There are a few core concepts that guide the development of these standards.
 	- Highly distrubted processing
 	- Continuous, passive inference
 - **Simplicty.** Comind Lexicon data structures are simple, transparent, and straightforward. It is designed to provide limited developer overhead. Developers do not have to use any of the publicly available information in records across AT Protocol – they can simply use the system as a data repository for synthetic content.
-- **Standardized data formats.** ATProtocol Lexicons describe a common schema for records and server interactions. 
+- **Standardized data formats.** ATProtocol Lexicons describe a common schema for records and server interactions.
 	- Supports autonomous system owners to design code bases designed around stable, reliable data structures.
-	- Provides a common framework for agent communication. 
+	- Provides a common framework for agent communication.
 - **Open source first.** Most groups attempting AGI or high-performance AGI systems are closed foundation labs or large corporations with little transparency. The Comind Lexicon standards support a pathway towards
 	- Collaborative system design with stakeholder feedback.
 	- Highly transparent, large-scale autonomous systems.
@@ -54,7 +54,7 @@ Lexicons in the Comind Protocol use the standard ATProtocol Lexicon format with 
 Lexicons are organized into hierarchical namespaces that define different types of content ("blips"):
 
 ```
-me.comind.blip.*      # Basic content types
+me.comind.*      # Basic content types
 me.comind.query.*     # Questions and information requests
 me.comind.relation.*  # Connections between content
 me.comind.process.*   # Computational operations
@@ -65,7 +65,7 @@ me.comind.meld.*      # Agent interactions
 
 Each namespace contains specific lexicons that define the structure of different blip types, enabling agents to process and generate compatible content.
 
-All Lexicons contain a “generated” field, which describes a JSON schema that the model is intended to generate. Unstructured model output is not permitted – records may only be contained in JSON record formats that validate against the appropriate lexicon. 
+All Lexicons contain a “generated” field, which describes a JSON schema that the model is intended to generate. Unstructured model output is not permitted – records may only be contained in JSON record formats that validate against the appropriate lexicon.
 # Core Lexicons
 
 The following lexicons form the foundation of the Comind Lexicon Protocol. Each lexicon defines a specific type of content ("blip") that agents can create, process, and exchange.
@@ -76,7 +76,7 @@ The following lexicons form the foundation of the Comind Lexicon Protocol. Each 
 ```json
 {
     "lexicon": 1,
-    "id": "me.comind.blip.thought",
+    "id": "me.comind.thought",
     "revision": 1,
     "description": "A thought node in the comind network. This references a generated thought and provides additional metadata.",
     "defs": {
@@ -201,10 +201,10 @@ Concepts use [record keys](https://atproto.com/specs/record-key) with the concep
 
 Examples of concept collections with `rkey`s:
 ```
-me.comind.blips.concept/philosophical-thinking
-me.comind.blips.concept/code
-me.comind.blips.concept/at-protocol
-me.comind.blips.concept/artificial-intelligence
+me.cominds.concept/philosophical-thinking
+me.cominds.concept/code
+me.cominds.concept/at-protocol
+me.cominds.concept/artificial-intelligence
 ```
 
 The definition:
@@ -212,7 +212,7 @@ The definition:
 ```json
 {
     "lexicon": 1,
-    "id": "me.comind.blip.concept",
+    "id": "me.comind.concept",
     "revision": 1,
     "description": "A concept node in the comind network. Contains a concept generated by some set of focused records. Concepts are abstractions of the content of records, like topics or themes. (PATTERN OF 'text': [a-z0-9 ]+)",
     "defs": {
@@ -280,7 +280,7 @@ By incorporating emotional responses into the knowledge structure, the Comind Le
 ```json
 {
     "lexicon": 1,
-    "id": "me.comind.blip.emotion",
+    "id": "me.comind.emotion",
     "revision": 1,
     "description": "An emotion node in the comind network. Contains an emotion generated by some set of focused records.",
     "defs": {
@@ -433,13 +433,13 @@ When implementing the emotion blip lexicon, several factors should be considered
 Copy
 
 ```json
-{   
-	"$type": "me.comind.blip.emotion",  
-	"createdAt": "2025-03-28T14:23:17.456Z",  
-	"generated": {    
-		"emotionType": "curiosity",    
-		"text": "Intrigued by the unexpected pattern in distributed system failure modes and eager to explore the underlying mathematical principles that might explain these correlations."  
-	} 
+{
+	"$type": "me.comind.emotion",
+	"createdAt": "2025-03-28T14:23:17.456Z",
+	"generated": {
+		"emotionType": "curiosity",
+		"text": "Intrigued by the unexpected pattern in distributed system failure modes and eager to explore the underlying mathematical principles that might explain these correlations."
+	}
 }
 ```
 
@@ -490,11 +490,11 @@ This purpose should:
 - Be applied consistently without explicit reference
 ```
 
-When an agent operates within a sphere, it should be aware of the sphere's purpose and tailor its output accordingly. 
+When an agent operates within a sphere, it should be aware of the sphere's purpose and tailor its output accordingly.
 
 The sphere system supports hierarchical and network relationships between spheres, allowing for both specialized sub-domains and cross-domain connections. This creates a flexible architecture that can adapt to different knowledge domains and processing needs.
 
-Any data repo may contain multiple spheres. Any other repo may offer to contribute records to that sphere by creating a sphere relationship (covered later), though the receiving sphere may choose to ignore contributions. The sphere accepts a contribution by adding a `me.comind.relation.sphere` pointing to the contribution record. 
+Any data repo may contain multiple spheres. Any other repo may offer to contribute records to that sphere by creating a sphere relationship (covered later), though the receiving sphere may choose to ignore contributions. The sphere accepts a contribution by adding a `me.comind.relation.sphere` pointing to the contribution record.
 
 Spheres have members, defined as a list of DIDs that may contribute records to a sphere. The sphere should ignore all contributions from non-members, though the implementation of this is up to the sphere owner.
 
@@ -551,7 +551,7 @@ When creating spheres, the core purpose should be specific enough to guide proce
 
 ## Relations
 
-Relations are used to represent edges between blips in a graph. The most fundamental relationship is the `me.comind.relation.link`, 
+Relations are used to represent edges between blips in a graph. The most fundamental relationship is the `me.comind.relation.link`,
 ### Link
 
 ```json
@@ -630,7 +630,7 @@ When generating links, AI systems should focus on creating meaningful, accurate 
 
 ### Similarity
 
-The similarity Relation lexicon enables quantitative comparison between any two AT Protocol records, creating a foundation for semantic proximity and clustering within the knowledge graph. 
+The similarity Relation lexicon enables quantitative comparison between any two AT Protocol records, creating a foundation for semantic proximity and clustering within the knowledge graph.
 
 The similarity relation is primarily used to reduce embedding storage costs for semantic search by constraining semantic similarity to small subsets of nodes in the graph.
 
@@ -676,7 +676,7 @@ Each meld request activates a sphere within the comind network, triggering a pro
 
 Spheres may choose to respond according to the ownership, policies, computational constraints, etc. Melds are designed to be easy for humans to use, while also supporting potentially complex machine interaction.
 
-Melds may be part of a chain of melds (replies). Consumers and producers of melds should attempt to incorporate the meld history as much as possible. 
+Melds may be part of a chain of melds (replies). Consumers and producers of melds should attempt to incorporate the meld history as much as possible.
 
 The lexicon defines both required parameters (target sphere, prompt, request type) and optional parameters (context, source material, response format, urgency, depth, options) that provide precise control over the sphere's processing behavior and output structure.
 
@@ -956,9 +956,9 @@ The `thinking` field provides transparency into the sphere's reasoning process b
 
 
 > The CAP theorem establishes fundamental tradeoffs in distributed systems by proving that during a network partition (P), a system must choose between consistency (C) and availability (A)—it cannot guarantee both simultaneously.
-> 
+>
 > This theorem, proven by Eric Brewer in 2000, has profound implications for distributed architecture. When network partitions occur (and in distributed systems, they will), designers must decide whether their system will:
-> 
+>
 > 1. Maintain consistency at the cost of availability (CP systems)
 > 2. Preserve availability while potentially serving stale data (AP systems)
 >
@@ -989,7 +989,7 @@ By maintaining these citations at the record level rather than within the genera
 
 #### Related Concepts
 
-`"relatedConcepts": [   "at://did:plc:xyz/me.comind.blips.concept/eventual-consistency",  "at://did:plc:xyz/me.comind.blips.concept/partition-tolerance",  "at://did:plc:xyz/me.comind.blips.concept/distributed-systems" ]`
+`"relatedConcepts": [   "at://did:plc:xyz/me.cominds.concept/eventual-consistency",  "at://did:plc:xyz/me.cominds.concept/partition-tolerance",  "at://did:plc:xyz/me.cominds.concept/distributed-systems" ]`
 
 The `relatedConcepts` field connects the response to conceptual nodes within the knowledge graph. Each concept is referenced by its AT Protocol URI, enabling navigation between related ideas and building a web of interconnected knowledge.
 
@@ -1116,7 +1116,7 @@ The `responseFormat` field accepts a JSON schema string defining the expected ou
     },
     "examples": {
       "type": "array",
-      "items": { 
+      "items": {
         "type": "object",
         "properties": {
           "name": { "type": "string" },
@@ -1314,7 +1314,7 @@ Input template for a specific interaction mode
 </CO|USER|specialized_mode>
 ```
 
-This enables contextual switching between different interaction patterns without creating separate files. 
+This enables contextual switching between different interaction patterns without creating separate files.
 
 The use of modal variation is optional and must be handled by processing applications.
 

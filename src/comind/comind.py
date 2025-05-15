@@ -6,14 +6,15 @@ import os
 import re
 import json
 import logging
-from time import time
+import time
 from src.session_reuse import default_login
 import src.structured_gen as sg
 from src.lexicon_utils import generated_lexicon_of, multiple_of_schema, add_link_property
 from src.record_manager import RecordManager
-from typing import Optional
+from typing import Optional, List, Dict
 from rich import print
 from rich.panel import Panel
+from rich.text import Text
 from src.comind.logging_config import configure_logger_without_timestamp, configure_root_logger_without_timestamp
 from .format import format, format_dict
 
@@ -30,6 +31,7 @@ class Comind:
     logger: logging.Logger
     core_perspective: str = None
     sphere_name: str = None
+
     def __init__(self, name: str, prompt_path: str = None, common_prompt_dir: str = None, core_perspective: str = None, sphere_name: str = None):
         self.name = name
 
@@ -48,7 +50,7 @@ class Comind:
 
         if sphere_name is not None:
             self.sphere_name = sphere_name
-            
+
         # Initialize logger with basename of the .co file
         basename = os.path.basename(self.prompt_path).replace(".co", "")
         self.logger = configure_logger_without_timestamp(basename)
@@ -68,7 +70,7 @@ class Comind:
     def load_prompt(self):
         with open(self.prompt_path, "r") as f:
             return f.read()
-        
+
     def load_common_prompts(self):
         common_prompts = {}
         for file in os.listdir(self.common_prompt_dir):
@@ -83,28 +85,28 @@ class Comind:
             common_prompts["sphere_name"] = self.sphere_name
 
         return common_prompts
-    
+
     def get_required_context_keys(self):
         """
         Returns a list of keys that are required for the prompt.
         """
         return ["core_perspective", "sphere_name"]
-    
+
     def to_prompt(self, context_dict: dict):
         """
         Load and format the prompt with values from context_dict.
-        
+
         Args:
             context_dict: Dictionary containing values to format into the prompt
-            
+
         Returns:
             The formatted prompt
-            
+
         Raises:
             ValueError: If core_perspective is None
         """
         raw_prompt = self.load_prompt()
-        
+
         # Load common prompts and add them to the context
         common_prompts = self.load_common_prompts()
         for common_key, common_content in common_prompts.items():
@@ -121,10 +123,10 @@ class Comind:
         elif context_dict['core_perspective'] is None:
             self.logger.error("core_perspective is None. Check that the sphere record exists and contains a valid text field.")
             raise ValueError("Core perspective is required but was None")
-        
+
         # Format the common prompts
         context_dict.update(format_dict(common_prompts, context_dict))
-                
+
         # Log the keys available in context_dict to help with debugging
         self.logger.info(f"Context keys: {list(context_dict.keys())}")
 
@@ -138,7 +140,7 @@ class Comind:
             # self.logger.warning("Returning unformatted prompt due to missing key")
             # return raw_prompt
             raise e
-        
+
     def split_prompts(self, context_dict: dict = {}, format: bool = True):
         """
         Splits a co file into system, schema, and user messages.
@@ -147,7 +149,7 @@ class Comind:
         <CO|SYSTEM> ... </CO|SYSTEM>
         <CO|SCHEMA> ... </CO|SCHEMA>
         <CO|USER> ... </CO|USER>
-        
+
         Tags may be in any order. User prompts are required.
         """
         # Get the already formatted prompt from to_prompt
@@ -164,7 +166,7 @@ class Comind:
 
         if not user_match:
             raise ValueError("User prompt is required.")
-        
+
         system_prompt = system_match.group(1).strip() if system_match else None
         schema_prompt = schema_match.group(1).strip() if schema_match else None
         user_prompt = user_match.group(1).strip() if user_match else None
@@ -175,22 +177,22 @@ class Comind:
             "schema": schema_prompt,
             "user": user_prompt
         }
-    
+
     def messages(self, values: dict):
         messages = []
         if values["system"]:
             messages.append({"role": "system", "content": values["system"]})
         messages.append({"role": "user", "content": values["user"]})
         return messages
-    
+
     def run(self, context_dict: dict, schema: str = None):
         """
         Run the comind with the given context_dict and schema.
-        
+
         Args:
             context_dict: Dictionary containing values to format into the prompt
             schema: Optional schema to use for generation
-            
+
         Returns:
             The generated result
         """
@@ -205,20 +207,20 @@ class Comind:
         messages = self.messages(prompts)
 
         self.logger.debug("messages", messages)
-        
+
         # Debug log to see the actual prompts being sent
         if prompts["system"]:
             first_50_chars = prompts["system"][:50] + "..." if len(prompts["system"]) > 50 else prompts["system"]
             self.logger.debug(f"System prompt (first 50 chars): {first_50_chars}")
-            
+
             # Check if core_perspective is properly formatted
             if "{core_perspective}" in prompts["system"]:
                 self.logger.error("Unformatted placeholder {core_perspective} found in system prompt")
-            
+
         if prompts["user"]:
             first_50_chars = prompts["user"][:50] + "..." if len(prompts["user"]) > 50 else prompts["user"]
             self.logger.debug(f"User prompt (first 50 chars): {first_50_chars}")
-            
+
             # Check if content is properly formatted
             if "{content}" in prompts["user"]:
                 self.logger.error("Unformatted placeholder {content} found in user prompt")
@@ -229,7 +231,7 @@ class Comind:
         schema = self.schema()
 
         # # Format the text to interpolation the context_dict
-        # # replaces {key} with value. 
+        # # replaces {key} with value.
         # for message in messages:
         #     print("message", message)
         #     message["content"] = message["content"].format(**context_dict)
@@ -251,26 +253,27 @@ class Conceptualizer(Comind):
             common_prompt_dir="prompts/common/",
             sphere_name=sphere_name,
             core_perspective=core_perspective,
-        )   
+        )
 
     def schema(self):
         # Load the schema from the prompt
-        concept_schema = generated_lexicon_of("me.comind.blip.concept", fetch_refs=True)
+        concept_schema = generated_lexicon_of("me.comind.concept", fetch_refs=True)
         add_link_property(concept_schema, "connection_to_content", required=True)
         return multiple_of_schema("concepts", concept_schema, min_items=1)
-    
+
     def run(self, context_dict: dict):
         response = super().run(context_dict)
         result = json.loads(response.choices[0].message.content)
 
         return result
-    
+
     def upload(
         self,
         result: dict,
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         """
         Uploads the result to the Comind network.
@@ -294,15 +297,22 @@ class Conceptualizer(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{concept_text}"
+            # Log the concept in a structured, readable format
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Concept:[/bold cyan] {concept_text}")
+
             if concept_relationship:
-                log_base_str += f" - {concept_relationship}"
+                log_lines.append(f"[bold green]Relationship:[/bold green] {concept_relationship}")
+
             if concept_note:
-                log_base_str += f" - {concept_note}"
+                log_lines.append(f"[bold yellow]Note:[/bold yellow] {concept_note}")
+
             if concept_strength:
-                log_base_str += f" - {concept_strength}"
-            self.logger.info(log_base_str)
+                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {concept_strength}")
+
+            log_message = "\n".join(log_lines)
+            self.logger.info(log_message)
 
             # Create printout string
             printout = f"""
@@ -312,16 +322,19 @@ Connection to content: {connection_to_content}
             self.logger.debug(printout)
 
             concept_record = {
-                "$type": "me.comind.blip.concept",
+                "$type": "me.comind.concept",
                 "createdAt": created_at,
                 "generated": {
                     "text": concept_text,
                 },
             }
 
+            if from_refs:
+                concept_record["from"] = from_refs
+
             # Upload the concept to the Comind network
             maybe_record = record_manager.try_get_record(
-                "me.comind.blip.concept",
+                "me.comind.concept",
                 concept_text.lower().replace(" ", "-"),
             )
 
@@ -329,7 +342,7 @@ Connection to content: {connection_to_content}
                 concept_creation_result = maybe_record
             else:
                 concept_creation_result = record_manager.create_record(
-                    "me.comind.blip.concept",
+                    "me.comind.concept",
                     concept_record,
                 )
 
@@ -371,21 +384,22 @@ class Feeler(Comind):
 
     def schema(self):
         # Load the schema from the prompt
-        emotion_schema = generated_lexicon_of("me.comind.blip.emotion", fetch_refs=True)
+        emotion_schema = generated_lexicon_of("me.comind.emotion", fetch_refs=True)
         add_link_property(emotion_schema, "connection_to_content", required=True)
         return multiple_of_schema("emotions", emotion_schema, min_items=1)
-    
+
     def run(self, context_dict: dict):
         response = super().run(context_dict)
         result = json.loads(response.choices[0].message.content)
         return result
-    
+
     def upload(
         self,
         result: dict,
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         # Load the concepts
         emotions = result["emotions"]
@@ -405,17 +419,25 @@ class Feeler(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{emotion_type}"
+            # Log the emotion in a structured, readable format
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Emotion Type:[/bold cyan] {emotion_type}")
+
             if emotion_text:
-                log_base_str += f" - {emotion_text}"
+                log_lines.append(f"[bold blue]Description:[/bold blue] {emotion_text}")
+
             if emotion_relationship:
-                log_base_str += f" - {emotion_relationship}"
+                log_lines.append(f"[bold green]Relationship:[/bold green] {emotion_relationship}")
+
             if emotion_note:
-                log_base_str += f" - {emotion_note}"
+                log_lines.append(f"[bold yellow]Note:[/bold yellow] {emotion_note}")
+
             if emotion_strength:
-                log_base_str += f" - {emotion_strength}"
-            self.logger.info(log_base_str)
+                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {emotion_strength}")
+
+            log_message = "\n".join(log_lines)
+            self.logger.info(log_message)
 
             # Create printout string
             printout = f"""
@@ -425,7 +447,7 @@ Connection to content: {connection_to_content}
             self.logger.debug(printout)
 
             emotion_record = {
-                "$type": "me.comind.blip.emotion",
+                "$type": "me.comind.emotion",
                 "createdAt": created_at,
                 "generated": {
                     "emotionType": emotion_type,
@@ -433,9 +455,12 @@ Connection to content: {connection_to_content}
                 },
             }
 
+            if from_refs:
+                emotion_record["from"] = from_refs
+
             # Upload the concept to the Comind network
             emotion_creation_result = record_manager.create_record(
-                "me.comind.blip.emotion",
+                "me.comind.emotion",
                 emotion_record,
             )
 
@@ -476,21 +501,22 @@ class Thinker(Comind):
 
     def schema(self):
         # Load the schema from the prompt
-        thought_schema = generated_lexicon_of("me.comind.blip.thought", fetch_refs=True)
+        thought_schema = generated_lexicon_of("me.comind.thought", fetch_refs=True)
         add_link_property(thought_schema, "connection_to_content", required=True)
         return multiple_of_schema("thoughts", thought_schema, min_items=1)
-        
+
     def run(self, context_dict: dict):
         response = super().run(context_dict)
         result = json.loads(response.choices[0].message.content)
         return result
-    
+
     def upload(
         self,
         result: dict,
         record_manager: RecordManager,
         target: Optional[str] = None,
         sphere: Optional[str] = None,
+        from_refs: Optional[List[Dict[str, str]]] = None,
     ):
         # Load the concepts
         thoughts = result["thoughts"]
@@ -513,8 +539,14 @@ class Thinker(Comind):
             if target is None:
                 self.logger.warning("Conceptualizer Warning: No target found but found connection_to_content.")
 
-            # Upload the concept to the Comind network
-            log_base_str = f"{thought_type}"
+            # Log the thought in a structured, readable format
+            from rich.panel import Panel
+            from rich.text import Text
+
+            # Create a structured log message
+            log_lines = []
+            log_lines.append(f"[bold cyan]Thought Type:[/bold cyan] {thought_type}")
+
             if thought_text:
                 log_base_str += f" - {thought_text}"
             # if thought_relationship:
@@ -537,7 +569,7 @@ Connection to content: {connection_to_content}
             self.logger.debug(printout)
 
             thought_record = {
-                "$type": "me.comind.blip.thought",
+                "$type": "me.comind.thought",
                 "createdAt": created_at,
                 "generated": {
                     "thoughtType": thought_type,
@@ -548,9 +580,12 @@ Connection to content: {connection_to_content}
                 },
             }
 
+            if from_refs:
+                thought_record["from"] = from_refs
+
             # Upload the concept to the Comind network
             thought_creation_result = record_manager.create_record(
-                "me.comind.blip.thought",
+                "me.comind.thought",
                 thought_record,
             )
 
@@ -580,72 +615,74 @@ Connection to content: {connection_to_content}
 
                 self.logger.debug(f"Link creation result: {record_result}")
 
-    
+
 if __name__ == "__main__":
+
+    # Log in
+    client = default_login()
+    record_manager = RecordManager(
+        client,
+        'at://neuromute.ai/me.comind.sphere.core/materials'
+    )
+    # record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/me')
+
+    # sphere_record = record_manager.get_sphere_record()
+    # perspective = sphere_record.value['text']
+
+    generated_strings = []
+
+    core_perspective = record_manager.get_perspective()
+    core_name = record_manager.get_sphere_name()
+    if core_perspective is None:
+        raise ValueError("Core perspective was retrieved but is empty")
+
     # Test the Comind class
-    comind1 = Conceptualizer()
-    comind2 = Feeler()
-    comind3 = Thinker()
+    args = {
+        'core_perspective':core_perspective,
+        'sphere_name':core_name,
+    }
+    comind1 = Conceptualizer(**args)
+    comind2 = Feeler(**args)
+    comind3 = Thinker(**args)
     # print(comind.load_prompt())
     # print(comind.load_common_prompts())
 
     cominds = [comind1, comind2, comind3]
 
-    # Log in
-    client = default_login()
-    record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/materials')
-    # record_manager = RecordManager(client, 'at://neuromute.ai/me.comind.sphere.core/me')
+    # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
+    timeline = client.get_timeline(algorithm='reverse-chronological')
 
-    # sphere_record = record_manager.get_sphere_record()
-    # perspective = sphere_record.value['text']
-    
-    generated_strings = []
-    
-    for comind in cominds:
-        try:
-            core_perspective = record_manager.get_perspective()
-            core_name = record_manager.get_sphere_name()
-            if not core_perspective:
-                raise ValueError("Core perspective was retrieved but is empty")
-                
-            # Print the first 100 characters of the core perspective for debugging
-            print(f"Core name: {core_name}")
-            print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
-        except Exception as e:
-            comind.logger.error(f"Failed to get core perspective: {e}")
-            print(f"[red]Error:[/red] Failed to get core perspective: {e}")
-            print("Using placeholder core perspective for testing.")
-            core_perspective = "This is a placeholder core perspective for testing."
+    for feed_view in timeline.feed: # Outer loop: posts
+        action = 'New Post'
+        if feed_view.reason:
+            action_by = feed_view.reason.by.handle
+            action = f'Reposted by @{action_by}'
 
-        # Print the common prompts that are being loaded
-        common_prompts = comind.load_common_prompts()
-        print(f"Common prompts loaded: {list(common_prompts.keys())}")
+        post = feed_view.post
+        post_uri = post.uri
+        post_cid = post.cid
+        author = post.author
+        post_content_prompt = f'[{action}] {author.display_name}: {post.record.text}'
 
-        # Types dict
-        blip_types = {}
-
-        # Get "Home" page. Use pagination (cursor + limit) to fetch all posts
-        timeline = client.get_timeline(algorithm='reverse-chronological')
-        for feed_view in timeline.feed:
-            action = 'New Post'
-            if feed_view.reason:
-                action_by = feed_view.reason.by.handle
-                action = f'Reposted by @{action_by}'
-
-            post = feed_view.post
-            post_uri = post.uri
-            post_cid = post.cid
-            author = post.author
-
-            prompt = f'[{action}] {author.display_name}: {post.record.text}'
-
-            context_dict = {
-                "content": prompt,
-                "core_perspective": core_perspective,
-                "sphere_name": core_name,
-            }
-            
+        for comind in cominds: # Inner loop: cominds
             try:
+                # Print the first 100 characters of the core perspective for debugging
+                # These will now print per-post, per-comind
+                print(f"Core name: {core_name}")
+                print(f"Core perspective (first 100 chars): {core_perspective[:100]}...")
+
+                # Print the common prompts that are being loaded
+                common_prompts = comind.load_common_prompts()
+                print(f"Common prompts loaded: {list(common_prompts.keys())}")
+
+                # Types dict - will be reset per-post, per-comind
+                blip_types = {}
+
+                context_dict = {
+                    "content": post_content_prompt,
+                    # comind.run() will use its own self.core_perspective and self.sphere_name
+                }
+
                 result = comind.run(context_dict)
 
                 if isinstance(comind, Feeler):
@@ -668,26 +705,29 @@ if __name__ == "__main__":
                         blip_types[ctype] += 1
 
                 # upload the result
+                current_from_refs = [{"uri": post.uri, "cid": post.cid}]
                 comind.upload(
                     result,
                     record_manager,
                     target=post_uri,
+                    from_refs=current_from_refs
                 )
 
                 # Print out the count of different concept types.
                 # print(blip_types)
 
-                # generated text
-                for thing in result["concepts"]:
-                    generated_strings.append(thing["text"])
+                # generated text (global accumulation)
+                if isinstance(comind, Conceptualizer) and "concepts" in result: # Ensure result has concepts
+                    for thing in result["concepts"]:
+                        generated_strings.append(thing["text"])
 
-
-                user_prompt = "Here is a list of concepts occuring currently, with the most\n" + \
+                # Zeitgeist generation using globally accumulated generated_strings
+                user_prompt_for_zeitgeist = "Here is a list of concepts occuring currently, with the most\n" + \
                     "recent at the bottom. Give me the zeitgeist.\n" + \
                     "\n".join(generated_strings)
-                
+
                 model_statement = sg.generate_by_schema(
-                    sg.messages(user_prompt),
+                    sg.messages(user_prompt_for_zeitgeist),
                     """
                     {
                         "type": "object",
@@ -698,18 +738,15 @@ if __name__ == "__main__":
                     }
                     """
                 )
-
                 new_txt = json.loads(model_statement.choices[0].message.content)
-
                 print(Panel(new_txt['zeitgeist']))
 
-                time.sleep(60)
-            except Exception as e:
-                comind.logger.error(f"Error processing post: {e}")
-                print(f"[red]Error processing post:[/red] {e}")
-                print(f"Post: {post}")
-                # Continue with next post rather than crashing
-                # continue
+                time.sleep(60) # Sleep after each comind processes a post
 
-                # Raise the error
-                raise e
+            except Exception as e:
+                comind.logger.error(f"Error processing post {post_uri} with comind {comind.name}: {e}")
+                print(f"[red]Error processing post {post_uri} with comind {comind.name}:[/red] {e}")
+                if post: # Ensure post object is available
+                    print(f"Post content: {post_content_prompt}")
+                # Continue to the next comind for the current post, or next post if this was the last comind.
+                pass

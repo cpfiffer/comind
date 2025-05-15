@@ -42,9 +42,10 @@ def configure_logger_without_timestamp(logger_name, level=logging.INFO):
         logger.removeHandler(handler)
     
     # Create a new handler
-    handler = logging.StreamHandler(sys.stdout)
+    from rich.logging import RichHandler
+    handler = RichHandler(show_time=False, show_path=False, rich_tracebacks=True, markup=True, enable_link_path=False)
     
-    # Create a formatter without timestamps
+    # Create a formatter without timestamps; RichHandler will use this for prefix and render markup in the message.
     formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     

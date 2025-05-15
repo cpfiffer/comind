@@ -39,7 +39,7 @@ modules_to_reload = [
     'src.structured_gen',
     'src.comind.comind',
     'src.bsky_utils',
-    'src.sphere_creator',
+    'src.sphere_manager',
 ]
 
 for module_name in modules_to_reload:
