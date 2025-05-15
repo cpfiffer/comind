@@ -7,3 +7,5 @@ user_info_cache.json
 *.pyc
 README_files/
 README.html
+
+**/CLAUDE.local.md
