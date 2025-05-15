@@ -653,8 +653,9 @@ async def main():
     sphere_to_use = None
 
     logger.debug(f"Found {len(spheres)} spheres")
+    print(spheres)
     for sphere in spheres:
-        value = sphere.value
+        value = sphere["value"]
         text = value["text"]
         title = value["title"]
         description = value["description"]

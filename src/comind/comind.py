@@ -516,17 +516,17 @@ class Thinker(Comind):
             # Upload the concept to the Comind network
             log_base_str = f"{thought_type}"
             if thought_text:
-                log_base_str += f" - text: {thought_text}"
-            if thought_relationship:
-                log_base_str += f" - relationship: {thought_relationship}"
-            if thought_note:
-                log_base_str += f" - note: {thought_note}"
-            if context:
-                log_base_str += f" - context: {context}"
-            if evidence:
-                log_base_str += f" - evidence: {evidence}"
-            if alternatives:
-                log_base_str += f" - alternatives: {alternatives}"
+                log_base_str += f" - {thought_text}"
+            # if thought_relationship:
+            #     log_base_str += f" - relationship: {thought_relationship}"
+            # if thought_note:
+            #     log_base_str += f" - note: {thought_note}"
+            # if context:
+            #     log_base_str += f" - context: {context}"
+            # if evidence:
+            #     log_base_str += f" - evidence: {evidence}"
+            # if alternatives:
+            #     log_base_str += f" - alternatives: {alternatives}"
             self.logger.info(log_base_str)
 
             # Create printout string
