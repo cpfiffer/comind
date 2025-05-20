@@ -62,5 +62,38 @@ Behind the scenes, spheres work by providing contextual guidance to AI agents ab
 
 Spheres are implemented using the ATProto lexicon `me.comind.sphere.core`.
 
+## Detailed Sphere Creation Walkthrough
+
+Here's a step-by-step guide to creating your first sphere:
+
+1. **Launch the sphere manager**:
+   ```bash
+   python -m src.sphere_manager
+   ```
+
+2. **Navigate the interface**:
+   - Use arrow keys to navigate
+   - Press `n` to create a new sphere
+   - Press `Enter` to select options
+
+3. **Fill in the sphere details**:
+   - **Title**: Choose a concise, descriptive name (e.g., "Biomimicry Insights")
+   - **Core Purpose**: Write your core perspective as described above
+   - **Description**: Add optional notes about the sphere's intended use
+
+4. **Save your sphere**:
+   - Press `Ctrl+S` or click the Save button
+   - Your new sphere will appear in the spheres list
+
+## Integration with Other Comind Components
+
+Spheres work seamlessly with other Comind components:
+
+- **Concepts**: Generated concepts will be influenced by the sphere's core perspective
+- **Thoughts**: Thought generation will be guided by the sphere's context
+- **Emotions**: Emotional responses will be contextualized by the sphere's perspective
+
+You can think of spheres as mental frameworks that shape how the Comind agents process and respond to content they encounter.
+
 
 
