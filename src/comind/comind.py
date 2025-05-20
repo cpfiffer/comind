@@ -548,30 +548,18 @@ class Thinker(Comind):
             log_lines.append(f"[bold cyan]Thought Type:[/bold cyan] {thought_type}")
 
             if thought_text:
-                log_lines.append(f"[bold blue]Content:[/bold blue] {thought_text}")
-
-            if context:
-                log_lines.append(f"[bold purple]Context:[/bold purple] {context}")
-
-            if thought_relationship:
-                log_lines.append(f"[bold green]Relationship:[/bold green] {thought_relationship}")
-
-            if thought_note:
-                log_lines.append(f"[bold yellow]Note:[/bold yellow] {thought_note}")
-
-            if thought_strength:
-                log_lines.append(f"[bold magenta]Strength:[/bold magenta] {thought_strength}")
-
-            if evidence:
-                evidence_str = ", ".join(evidence) if isinstance(evidence, list) else str(evidence)
-                log_lines.append(f"[bold red]Evidence:[/bold red] {evidence_str}")
-
-            if alternatives:
-                alt_str = ", ".join(alternatives) if isinstance(alternatives, list) else str(alternatives)
-                log_lines.append(f"[bold orange]Alternatives:[/bold orange] {alt_str}")
-
-            log_message = "\n".join(log_lines)
-            self.logger.info(log_message)
+                log_base_str += f" - {thought_text}"
+            # if thought_relationship:
+            #     log_base_str += f" - relationship: {thought_relationship}"
+            # if thought_note:
+            #     log_base_str += f" - note: {thought_note}"
+            # if context:
+            #     log_base_str += f" - context: {context}"
+            # if evidence:
+            #     log_base_str += f" - evidence: {evidence}"
+            # if alternatives:
+            #     log_base_str += f" - alternatives: {alternatives}"
+            self.logger.info(log_base_str)
 
             # Create printout string
             printout = f"""

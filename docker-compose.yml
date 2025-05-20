@@ -18,8 +18,8 @@ services:
     ports:
       - "8002:8000"
     command: >
-      --model microsoft/Phi-4
-      --max_model_len 15000
+      --model noxneural/Hermes-3-Llama-3.2-3B-awq-4-bit
+      --max_model_len 20000
       --guided-decoding-backend outlines
 
   embeddings:
