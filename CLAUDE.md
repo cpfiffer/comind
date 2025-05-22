@@ -27,3 +27,6 @@
 - Comind is lexicon first. Lexicons are the source of truth.
 
 AI-generated contributions are welcome but must be high quality and well-reviewed.
+
+## Documentation Guidelines
+- Documentation is important. Changes in goals, objectives, motivations, and operation must be updated in the content/ folder. Be careful with it -- it is the most important thing for Comind.
