@@ -89,11 +89,11 @@ Here's a step-by-step guide to creating your first sphere:
 
 Spheres work seamlessly with other Comind components:
 
-- **Concepts**: Generated concepts will be influenced by the sphere's core perspective
+- **Concepts**: The conceptualizer extracts concepts influenced by the sphere's core perspective and creates relationship records connecting them to source content. Concepts are singleton records that accumulate connections over time as different sources reference them.
 - **Thoughts**: Thought generation will be guided by the sphere's context
 - **Emotions**: Emotional responses will be contextualized by the sphere's perspective
 
-You can think of spheres as mental frameworks that shape how the Comind agents process and respond to content they encounter.
+You can think of spheres as mental frameworks that shape how the Comind agents process and respond to content they encounter. The relationship-based architecture allows spheres to naturally build knowledge graphs where concepts serve as connection points between different pieces of content.
 
 
 
