@@ -1,10 +1,18 @@
-# --model microsoft/Phi-3.5-mini-instruct
-# --mode microsoft/Phi-4
-# --model google/gemma-3-12b-it # needs a new version of transformers
+# Comind Docker Compose Configuration
+# 
+# Usage:
+#   docker-compose --profile inference up    # Start inference services only
+#   docker-compose --profile database up     # Start database services only  
+#   docker-compose --profile all up          # Start all services
+#   docker-compose up                        # Start core services (database only)
+
 services:
+  # === INFERENCE SERVICES ===
+  
   srv-llm:
     image: vllm/vllm-openai:latest
     runtime: nvidia
+    profiles: ["inference", "all"]
     deploy:
       resources:
         reservations:
@@ -25,6 +33,7 @@ services:
   embeddings:
     image: vllm/vllm-openai:latest
     runtime: nvidia
+    profiles: ["inference", "all"]
     deploy:
       resources:
         reservations:
@@ -40,3 +49,36 @@ services:
       --model mixedbread-ai/mxbai-embed-xsmall-v1
       --guided-decoding-backend outlines
       --trust-remote-code
+
+  # === DATABASE SERVICES ===
+  
+  neo4j:
+    image: neo4j:5.15-community
+    profiles: ["database", "all", ""]  # Empty profile means it runs by default
+    environment:
+      NEO4J_AUTH: neo4j/comind123
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_apoc_export_file_enabled: true
+      NEO4J_apoc_import_file_enabled: true
+      NEO4J_apoc_import_file_use__neo4j__config: true
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: yes
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_plugins:/plugins
+    ports:
+      - "7474:7474"    # HTTP
+      - "7687:7687"    # Bolt
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "comind123", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
+  neo4j_plugins:

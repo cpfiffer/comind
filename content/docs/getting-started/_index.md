@@ -34,7 +34,68 @@ When running, the Comind consumer:
 
 This guide will help you run the reference agent on your machine. Note — this is resource intensive and complicated to set up. It requires access to LLM and embedding servers.
 
-### Setting up vLLM Servers
+### Service Architecture
+
+Comind consists of two main service categories that can be run independently:
+
+1. **Database Services**: Neo4j graph database for storing and querying the knowledge graph
+2. **Inference Services**: vLLM servers for language model inference and embeddings
+
+You can choose to run only the services you need using Docker Compose profiles.
+
+### Setting up Services with Docker Compose
+
+The included `docker-compose.yml` supports flexible service deployment:
+
+```bash
+# Start only database services (default)
+docker-compose up -d
+# or explicitly
+docker-compose --profile database up -d
+
+# Start only inference services  
+docker-compose --profile inference up -d
+
+# Start all services
+docker-compose --profile all up -d
+```
+
+For easier management, use the included service script:
+
+```bash
+# Start only database
+./scripts/services.sh start database
+
+# Start only inference services
+./scripts/services.sh start inference  
+
+# Start all services
+./scripts/services.sh start all
+
+# Check status
+./scripts/services.sh status
+
+# View logs
+./scripts/services.sh logs neo4j
+```
+
+### Database Services
+
+The database services include Neo4j for graph-based knowledge storage and querying.
+
+#### Neo4j Configuration
+
+- **Neo4j Browser**: http://localhost:7474
+- **Bolt Protocol**: bolt://localhost:7687
+- **Username**: neo4j
+- **Password**: comind123
+
+Access Neo4j shell directly:
+```bash
+./scripts/services.sh shell
+```
+
+### Inference Services (vLLM)
 
 If you have sufficient hardware (particularly a GPU with enough VRAM), you can run the LLM and embedding servers locally using Docker Compose.
 
@@ -54,65 +115,26 @@ HF_TOKEN=your_hugging_face_token_here
 HUGGING_FACE_HUB_TOKEN=your_hugging_face_token_here
 ```
 
-3. Use the following `docker-compose.yml`:
+3. The included `docker-compose.yml` already contains the inference service configuration with the latest models and settings.
 
-```yaml
-services:
-  srv-llm:
-    image: vllm/vllm-openai:latest
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-    environment:
-      HF_TOKEN: ${HF_TOKEN}
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
-    volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8002:8000"
-    command: >
-      --model microsoft/Phi-4
-      --max_model_len 15000
-      --guided-decoding-backend outlines
+#### Running the Inference Services
 
-  embeddings:
-    image: vllm/vllm-openai:latest
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-    environment:
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
-    volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    ports:
-      - "8001:8000"
-    command: >
-      --model mixedbread-ai/mxbai-embed-xsmall-v1
-      --guided-decoding-backend outlines
-      --trust-remote-code
+1. Start the inference services:
+```bash
+docker-compose --profile inference up -d
+# or use the service script
+./scripts/services.sh start inference
 ```
 
-#### Running the Servers
-
-1. Start the services:
+2. Check that services are running:
 ```bash
-docker-compose up -d
-```
-
-2. Check that both services are running:
-```bash
-docker-compose ps
+./scripts/services.sh status
 ```
 
 3. To view logs:
 ```bash
-docker-compose logs -f
+./scripts/services.sh logs srv-llm
+./scripts/services.sh logs embeddings
 ```
 
 #### Using Different Models
