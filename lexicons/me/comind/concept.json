@@ -2,23 +2,18 @@
   "lexicon": 1,
   "id": "me.comind.concept",
   "revision": 3,
-  "description": "A simplified concept node in the comind network. Contains a concept and its source. (PATTERN OF 'concept': [a-z0-9 ]+)",
+  "description": "A simplified concept node in the comind network. Contains only concept text. (PATTERN OF 'concept': [a-z0-9 ]+)",
   "defs": {
     "main": {
       "type": "record",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["concept", "source"],
+        "required": ["concept"],
         "properties": {
           "concept": {
             "type": "string",
             "description": "The concept text. Must use only the characters [a-z0-9 ]. Should be a single word or phrase, like 'data', 'privacy', 'ai', 'security', 'social networks', etc."
-          },
-          "source": {
-            "type": "ref",
-            "ref": "com.atproto.repo.strongRef",
-            "description": "Reference to the source record this concept was extracted from."
           }
         }
       }

@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "me.comind.relationship.concept",
+  "revision": 1,
+  "description": "A relationship between a source record and a concept.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "cid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt", "source", "target", "relationship"],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "source": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The source record that relates to the concept."
+          },
+          "target": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Reference to the concept record."
+          },
+          "relationship": {
+            "type": "string",
+            "enum": [
+              "RELATES_TO",
+              "DESCRIBES",
+              "MENTIONS",
+              "EXEMPLIFIES",
+              "CONTRADICTS",
+              "QUESTIONS",
+              "SUPPORTS",
+              "CRITIQUES"
+            ],
+            "description": "The type of relationship between the source and concept."
+          }
+        }
+      }
+    }
+  }
+}

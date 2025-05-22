@@ -15,9 +15,39 @@ Your core perspective is CRITICAL - it determines which concepts you extract and
 
 ## Your task
 
-Extract 5-15 simple concepts from content that connect to your core perspective. 
+Extract 5-15 simple concepts from content that connect to your core perspective, along with how each concept relates to the content.
 
 Concepts are short words or phrases (1-3 words) that must be lowercase and may contain spaces. They serve as semantic anchors connecting content across the network.
+
+For each concept, specify the relationship type:
+- RELATES_TO: Default catch-all relationship
+- DESCRIBES: Source describes/explains the concept  
+- MENTIONS: Weak reference, just name-dropped
+- EXEMPLIFIES: "This content EXEMPLIFIES the concept"
+- CONTRADICTS: "This content CONTRADICTS the concept"
+- QUESTIONS: "This content QUESTIONS the concept"
+- SUPPORTS: "This content SUPPORTS the concept"
+- CRITIQUES: "This content CRITIQUES the concept"
+
+Example output:
+```json
+{
+  "concepts": [
+    {
+      "text": "distributed systems",
+      "relationship": "DESCRIBES"
+    },
+    {
+      "text": "network effects", 
+      "relationship": "MENTIONS"
+    },
+    {
+      "text": "centralization",
+      "relationship": "CRITIQUES"
+    }
+  ]
+}
+```
 
 ## Guidelines
 

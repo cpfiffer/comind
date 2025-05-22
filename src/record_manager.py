@@ -186,8 +186,9 @@ class RecordManager:
             create_params['rkey'] = create_params['record']['title'].lower().replace(" ", "-")
 
         if collection == "me.comind.concept":
-            # Set rkey to lowercase title with hyphens instead of spaces
-            create_params['rkey'] = create_params['record']['generated']['text'].lower().replace(" ", "-")
+            # Set rkey to lowercase concept with hyphens instead of spaces
+            # Updated to use the new simplified concept structure
+            create_params['rkey'] = create_params['record']['concept'].lower().replace(" ", "-")
 
         if rkey is not None:
             create_params['rkey'] = rkey

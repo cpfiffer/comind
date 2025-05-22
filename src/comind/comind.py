@@ -300,15 +300,36 @@ class Conceptualizer(Comind):
         )
 
     def schema(self):
-        # Simple schema for concept extraction
+        # Schema for concept extraction with relationships
         return {
             "type": "object",
             "properties": {
                 "concepts": {
                     "type": "array",
                     "items": {
-                        "type": "string",
-                        "description": "A simple concept (1-3 words, lowercase, spaces allowed)",
+                        "type": "object",
+                        "properties": {
+                            "text": {
+                                "type": "string",
+                                "pattern": "[a-z0-9 ]+",
+                                "description": "A simple concept (1-3 words, lowercase, spaces allowed)",
+                            },
+                            "relationship": {
+                                "type": "string",
+                                "enum": [
+                                    "RELATES_TO",
+                                    "DESCRIBES", 
+                                    "MENTIONS",
+                                    "EXEMPLIFIES",
+                                    "CONTRADICTS",
+                                    "QUESTIONS",
+                                    "SUPPORTS",
+                                    "CRITIQUES"
+                                ],
+                                "description": "The relationship between the source content and this concept",
+                            }
+                        },
+                        "required": ["text", "relationship"],
                     },
                     "minItems": 5,
                     "maxItems": 15,
@@ -334,23 +355,25 @@ class Conceptualizer(Comind):
         """
         Uploads the result to the Comind network.
 
-        The result is expected to be a list of concept strings.
+        The result is expected to be a list of concept objects with text and relationship fields.
         """
-        # Load the concepts (now just strings)
+        # Load the concepts (now objects with text and relationship)
         concepts = result["concepts"]
 
         # Upload the concepts to the Comind network
-        for concept_text in concepts:
-            self.logger.info(f"[bold cyan]Concept:[/bold cyan] {concept_text}")
+        for concept_obj in concepts:
+            concept_text = concept_obj["text"]
+            relationship = concept_obj["relationship"]
+            
+            self.logger.info(f"[bold cyan]Concept:[/bold cyan] {concept_text} ({relationship})")
 
-            # Create the simplified concept record
+            # Create the simplified concept record (just concept text)
             concept_record = {
                 "$type": "me.comind.concept",
                 "concept": concept_text,
-                "source": target,  # Reference to the source record
             }
 
-            # Upload the concept to the Comind network
+            # Check if concept already exists
             maybe_record = record_manager.try_get_record(
                 "me.comind.concept",
                 concept_text.lower().replace(" ", "-"),
@@ -366,7 +389,22 @@ class Conceptualizer(Comind):
                 )
                 self.logger.debug(f"Created new concept: {concept_text}")
 
+            # Create relationship record linking source to concept
+            relationship_record = {
+                "$type": "me.comind.relationship.concept",
+                "createdAt": datetime.now().isoformat(),
+                "source": target,
+                "target": concept_creation_result.uri,
+                "relationship": relationship,
+            }
+
+            relationship_result = record_manager.create_record(
+                "me.comind.relationship.concept",
+                relationship_record,
+            )
+
             self.logger.debug(f"Concept result: {concept_creation_result}")
+            self.logger.debug(f"Relationship result: {relationship_result}")
 
 
 class Feeler(Comind):
