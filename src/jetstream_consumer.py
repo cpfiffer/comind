@@ -420,19 +420,33 @@ async def process_event(
         list_of_strong_refs = [{"uri": uri, "cid": cid} for uri, cid in from_refs_set if uri and cid]
 
         # Run the comind
-        result = comind.run(context_dict)
+        try:
+            logger.debug(f"Running comind with context length: {len(prompt)}")
+            result = comind.run(context_dict)
+            logger.debug(f"Comind result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+        except Exception as e:
+            logger.error(f"Error running comind: {e}", exc_info=True)
+            raise
 
         # Upload the result
-        comind.upload(
-            result,
-            RecordManager(client), # Consider passing the existing record_manager if appropriate
-            target=post_uri,
-            from_refs=list_of_strong_refs # Pass the collected references
-        )
+        try:
+            logger.debug(f"Uploading comind result for {post_uri}")
+            comind.upload(
+                result,
+                RecordManager(client), # Consider passing the existing record_manager if appropriate
+                target=post_uri,
+                from_refs=list_of_strong_refs # Pass the collected references
+            )
+            logger.info(f"Successfully processed and uploaded result for {post_uri}")
+        except Exception as e:
+            logger.error(f"Error uploading comind result: {e}", exc_info=True)
+            raise
 
     except Exception as e:
-        logger.error(f"jetstream_consumer.py: Error processing post {post_uri}: {e}")
-        raise e
+        logger.error(f"jetstream_consumer.py: Error processing post {post_uri}: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise
 
 async def connect_to_jetstream(
         atproto_client: Client,
@@ -575,6 +589,15 @@ async def connect_to_jetstream(
                             logger.error("Maximum context length exceeded. Could not process message.")
                         else:
                             logger.error(f"jetstream_consumer.py: Error processing message: {e}")
+                            # Log detailed error information
+                            import traceback
+                            logger.error(f"Message processing error traceback: {traceback.format_exc()}")
+                            
+                            # If the error is related to 'generated', it might be a lexicon schema mismatch
+                            if "'generated'" in str(e):
+                                logger.error("This appears to be related to the 'generated' field which was removed from concept records.")
+                                logger.error("Please make sure all code is updated to use the new simplified concept schema.")
+                                
                             raise e
 
                 # If we broke out of the loop due to reconnect_needed, close the connection
@@ -612,6 +635,15 @@ async def connect_to_jetstream(
 
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
+            # Log more detailed error information
+            import traceback
+            logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
+            
+            # Check for specific error types to provide better guidance
+            if "'generated'" in str(e):
+                logger.error("This error appears to be related to the 'generated' field which was removed from concept records.")
+                logger.error("Please check if there are any remaining code references to the old 'generated' concept field structure.")
+                
             logger.info(f"Reconnecting in {RECONNECT_DELAY} seconds...")
             await asyncio.sleep(RECONNECT_DELAY)
 
@@ -741,7 +773,17 @@ async def main():
         logger.info("Shutting down")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        # raise e
+        # Add detailed traceback information
+        import traceback
+        logger.error(f"Stack trace: {traceback.format_exc()}")
+        
+        # Provide specific guidance for common errors
+        if "'generated'" in str(e):
+            logger.error("This error appears to be related to the 'generated' field which was removed from concept records.")
+            logger.error("Please check if there are any remaining code references to the old 'generated' concept field structure.")
+            
+        # Uncomment this to re-raise the exception for better debugging in development
+        # raise
 
 
 if __name__ == "__main__":

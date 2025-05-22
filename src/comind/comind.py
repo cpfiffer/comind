@@ -706,7 +706,7 @@ if __name__ == "__main__":
                         blip_types[ttype] += 1
                 elif isinstance(comind, Conceptualizer):
                     for concept in result["concepts"]:
-                        ctype = concept["text"]
+                        ctype = concept
                         if ctype not in blip_types:
                             blip_types[ctype] = 0
                         blip_types[ctype] += 1
@@ -725,7 +725,7 @@ if __name__ == "__main__":
                     isinstance(comind, Conceptualizer) and "concepts" in result
                 ):  # Ensure result has concepts
                     for thing in result["concepts"]:
-                        generated_strings.append(thing["text"])
+                        generated_strings.append(thing)
 
                 # Zeitgeist generation using globally accumulated generated_strings
                 user_prompt_for_zeitgeist = (
