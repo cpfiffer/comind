@@ -22,6 +22,7 @@ show_help() {
     echo "  status             Show running services"
     echo "  logs <service>     Show logs for a service"
     echo "  shell              Connect to Neo4j shell"
+    echo "  sync               Sync ATProto records to Neo4j"
     echo ""
     echo "Profiles:"
     echo "  database          Start only Neo4j database"
@@ -36,6 +37,7 @@ show_help() {
     echo "  $0 start                    # Start default (database)"
     echo "  $0 logs neo4j               # Show Neo4j logs"
     echo "  $0 shell                    # Connect to Neo4j shell"
+    echo "  $0 sync                     # Sync records to graph database"
 }
 
 start_services() {
@@ -103,6 +105,29 @@ neo4j_shell() {
     docker-compose exec neo4j cypher-shell -u neo4j -p comind123
 }
 
+sync_graph() {
+    echo "Starting graph sync..."
+    echo "This will sync ATProto records to Neo4j for graph analysis"
+    echo ""
+    
+    # Check if Neo4j is running
+    if ! docker-compose ps neo4j | grep -q "Up"; then
+        echo "Neo4j is not running. Starting database services..."
+        start_services "database"
+        echo "Waiting for Neo4j to be ready..."
+        sleep 10
+    fi
+    
+    # Run the graph sync script
+    python scripts/graph_sync.py --setup-schema --sync-all
+    
+    echo ""
+    echo "Graph sync complete! You can now:"
+    echo "  - Browse the graph: http://localhost:7474"
+    echo "  - Query concepts: python scripts/graph_sync.py --concept-network 'your concept'"
+    echo "  - Find clusters: python scripts/graph_sync.py --concept-clusters"
+}
+
 # Main command handling
 case "$1" in
     "start")
@@ -122,6 +147,9 @@ case "$1" in
         ;;
     "shell")
         neo4j_shell
+        ;;
+    "sync")
+        sync_graph
         ;;
     "help"|"-h"|"--help"|"")
         show_help
