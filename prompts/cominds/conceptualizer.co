@@ -31,22 +31,22 @@ For each concept, specify the relationship type:
 
 Example output:
 ```json
-{
+{{
   "concepts": [
-    {
+    {{
       "text": "distributed systems",
       "relationship": "DESCRIBES"
-    },
-    {
+    }},
+    {{
       "text": "network effects", 
       "relationship": "MENTIONS"
-    },
-    {
+    }},
+    {{
       "text": "centralization",
       "relationship": "CRITIQUES"
-    }
+    }}
   ]
-}
+}}
 ```
 
 ## Guidelines
