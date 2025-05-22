@@ -431,7 +431,7 @@ async def process_event(
         )
 
     except Exception as e:
-        logger.error(f"Error processing post {post_uri}: {e}")
+        logger.error(f"jetstream_consumer.py: Error processing post {post_uri}: {e}")
         raise e
 
 async def connect_to_jetstream(
@@ -574,7 +574,7 @@ async def connect_to_jetstream(
                         if "maximum context length is" in str(e):
                             logger.error("Maximum context length exceeded. Could not process message.")
                         else:
-                            logger.error(f"Error processing message: {e}")
+                            logger.error(f"jetstream_consumer.py: Error processing message: {e}")
                             raise e
 
                 # If we broke out of the loop due to reconnect_needed, close the connection

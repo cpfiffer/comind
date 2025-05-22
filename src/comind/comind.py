@@ -753,10 +753,10 @@ if __name__ == "__main__":
 
             except Exception as e:
                 comind.logger.error(
-                    f"Error processing post {post_uri} with comind {comind.name}: {e}"
+                    f"comind.py: Error processing post {post_uri} with comind {comind.name}: {e}"
                 )
                 print(
-                    f"[red]Error processing post {post_uri} with comind {comind.name}:[/red] {e}"
+                    f"[red]comind.py: Error processing post {post_uri} with comind {comind.name}:[/red] {e}"
                 )
                 if post:  # Ensure post object is available
                     print(f"Post content: {post_content_prompt}")
