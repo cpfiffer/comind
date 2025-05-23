@@ -45,10 +45,10 @@ start_services() {
     
     if [ -z "$profile" ]; then
         echo "Starting default services (database)..."
-        docker-compose up -d
+        docker compose up -d
     else
         echo "Starting $profile services..."
-        docker-compose --profile "$profile" up -d
+        docker compose --profile "$profile" up -d
     fi
     
     echo ""
@@ -69,10 +69,10 @@ stop_services() {
     
     if [ -z "$profile" ]; then
         echo "Stopping all services..."
-        docker-compose down
+        docker compose down
     else
         echo "Stopping $profile services..."
-        docker-compose --profile "$profile" down
+        docker compose --profile "$profile" down
     fi
 }
 
@@ -85,7 +85,7 @@ restart_services() {
 show_status() {
     echo "Running Comind services:"
     echo ""
-    docker-compose ps
+    docker compose ps
 }
 
 show_logs() {
@@ -96,13 +96,13 @@ show_logs() {
         exit 1
     fi
     
-    docker-compose logs -f "$service"
+    docker compose logs -f "$service"
 }
 
 neo4j_shell() {
     echo "Connecting to Neo4j shell..."
     echo "Use 'MATCH (n) RETURN n LIMIT 10;' to test the connection"
-    docker-compose exec neo4j cypher-shell -u neo4j -p comind123
+    docker compose exec neo4j cypher-shell -u neo4j -p comind123
 }
 
 sync_graph() {
@@ -111,7 +111,7 @@ sync_graph() {
     echo ""
     
     # Check if Neo4j is running
-    if ! docker-compose ps neo4j | grep -q "Up"; then
+    if ! docker compose ps neo4j | grep -q "Up"; then
         echo "Neo4j is not running. Starting database services..."
         start_services "database"
         echo "Waiting for Neo4j to be ready..."

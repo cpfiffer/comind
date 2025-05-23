@@ -242,7 +242,51 @@ class RecordManager:
             logger.error(f"Error listing records in collection {collection}: {str(e)}")
             raise e
 
-    def delete_record(self, collection: str, rkey: str) -> None:
+    def list_all_records(self, collection: str) -> List[Dict]:
+        """
+        List ALL records in a collection, handling pagination automatically.
+
+        Args:
+            collection: The collection to list records from (e.g., me.cominds.thought)
+
+        Returns:
+            A list of all record dictionaries in the collection
+
+        Raises:
+            Exception: If the API request fails
+        """
+        logger.info(f"Listing all records in collection: {collection}")
+        all_records = []
+        cursor = None
+        
+        try:
+            while True:
+                params = {
+                    'collection': collection,
+                    'repo': self.client.me.did,
+                    'limit': 100  # Use maximum limit for efficiency
+                }
+                
+                if cursor:
+                    params['cursor'] = cursor
+                
+                response = self.client.com.atproto.repo.list_records(params)
+                all_records.extend(response.records)
+                
+                # Check if there are more records
+                if hasattr(response, 'cursor') and response.cursor:
+                    cursor = response.cursor
+                    logger.debug(f"Found {len(response.records)} records, continuing with cursor: {cursor}")
+                else:
+                    break
+            
+            logger.info(f"Found {len(all_records)} total records in collection: {collection}")
+            return all_records
+        except Exception as e:
+            logger.error(f"Error listing all records in collection {collection}: {str(e)}")
+            raise e
+
+    def delete_record(self, collection: str, rkey: str, sleep_time: int = 1) -> None:
         """
         Delete a record from the user's repository.
 
@@ -267,17 +311,19 @@ class RecordManager:
                 'repo': self.client.me.did,
                 'rkey': rkey
             })
-            logger.info(f"Successfully deleted record: {collection}/{rkey}")
+            logger.debug(f"Successfully deleted record: {collection}/{rkey}")
+            time.sleep(sleep_time)
         except Exception as e:
             logger.error(f"Error deleting record {collection}/{rkey}: {str(e)}")
             raise e
 
-    def clear_collection(self, collection: str) -> None:
+    def clear_collection(self, collection: str, sleep_time: int = 1) -> None:
         """
         Delete all records in a collection.
 
         Args:
             collection: The collection to clear (e.g., me.cominds.thought)
+            sleep_time: The time to sleep between deleting records
 
         Raises:
             ValueError: If attempting to clear a collection outside the allowed namespace
@@ -291,7 +337,7 @@ class RecordManager:
             raise ValueError(error_msg)
 
         try:
-            records = self.list_records(collection)
+            records = self.list_all_records(collection)
             logger.info(f"Found {len(records)} records to delete in collection: {collection}")
 
             for record in records:
@@ -299,7 +345,7 @@ class RecordManager:
                 # Extract the rkey from the uri
                 rkey = record.uri.split('/')[-1]
                 logger.debug(f"Deleting record with rkey: {rkey}")
-                self.delete_record(collection, rkey)
+                self.delete_record(collection, rkey, sleep_time=sleep_time)
 
             logger.info(f"Successfully cleared all records in collection: {collection}")
         except Exception as e:

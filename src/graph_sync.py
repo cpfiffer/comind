@@ -13,7 +13,7 @@ import json
 from neo4j import GraphDatabase
 from atproto import Client as AtProtoClient
 
-from src.record_manager import RecordManager
+from record_manager import RecordManager
 
 # Configure logging
 logging.basicConfig(
@@ -492,7 +492,7 @@ def create_graph_sync_service(neo4j_uri: str = "bolt://localhost:7687",
         Configured GraphSyncService instance
     """
     if record_manager is None:
-        from src.session_reuse import default_login
+        from session_reuse import default_login
         client = default_login()
         record_manager = RecordManager(client)
     
