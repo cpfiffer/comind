@@ -3,10 +3,15 @@
 body {
     background-color: #24242400 !important;
     color: #f7f3e9 !important;
+    font-family: 'Comfortaa', sans-serif !important;
 }
 
 .navbar {
     background-color: #24242400 !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Comfortaa', sans-serif !important;
 }
 
 
