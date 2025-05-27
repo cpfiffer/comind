@@ -119,13 +119,13 @@ sync_graph() {
     fi
     
     # Run the graph sync script
-    python scripts/graph_sync.py --setup-schema --sync-all
+    python3 scripts/graph_sync.py --setup-schema --sync-all
     
     echo ""
     echo "Graph sync complete! You can now:"
     echo "  - Browse the graph: http://localhost:7474"
-    echo "  - Query concepts: python scripts/graph_sync.py --concept-network 'your concept'"
-    echo "  - Find clusters: python scripts/graph_sync.py --concept-clusters"
+    echo "  - Query concepts: python3 scripts/graph_sync.py --concept-network 'your concept'"
+    echo "  - Find clusters: python3 scripts/graph_sync.py --concept-clusters"
 }
 
 # Main command handling
