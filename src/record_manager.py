@@ -3,6 +3,7 @@ from atproto import Client as AtProtoClient
 from datetime import datetime
 import time
 import logging
+import os
 from rich import print
 
 # Configure logging
@@ -29,19 +30,23 @@ class RecordManager:
     Attributes:
         client: An authenticated ATProtoClient instance
         ALLOWED_NAMESPACE: The namespace prefix that this manager is allowed to operate on
+        graph_sync_service: Optional GraphSyncService for real-time graph injection
     """
     ALLOWED_NAMESPACE = "me.comind."
 
-    def __init__(self, client: AtProtoClient, sphere: Optional[str] = None):
+    def __init__(self, client: AtProtoClient, sphere: Optional[str] = None, enable_graph_sync: Optional[bool] = None):
         """
         Initialize a RecordManager with an authenticated ATProto client.
 
         Args:
             client: An authenticated ATProtoClient instance
             sphere: The sphere to use for the RecordManager. Optional.
+            enable_graph_sync: Whether to enable real-time graph sync. If None, 
+                              checks COMIND_GRAPH_SYNC_ENABLED environment variable.
         """
         self.client = client
         self.sphere_uri = sphere
+        self.graph_sync_service = None
 
         if sphere:
             splat = sphere.split("/")
@@ -50,9 +55,58 @@ class RecordManager:
             print(self.sphere_rkey)
             print(self.sphere_collection)
 
-        logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
+        # Initialize graph sync if enabled
+        if enable_graph_sync is None:
+            enable_graph_sync = os.getenv("COMIND_GRAPH_SYNC_ENABLED", "false").lower() in ("true", "1", "yes")
+        
+        if enable_graph_sync:
+            self._initialize_graph_sync()
 
-    def sphere_record(self, target: str, sphere_uri: str = None):
+        logger.debug(f"Initialized RecordManager with client DID: {self.client.me.did if hasattr(self.client, 'me') else 'Not authenticated'}")
+        logger.debug(f"Graph sync enabled: {self.graph_sync_service is not None}")
+
+    def _initialize_graph_sync(self):
+        """Initialize the graph sync service if dependencies are available."""
+        try:
+            from graph_sync import create_graph_sync_service
+            
+            # Get Neo4j connection parameters from environment or use defaults
+            neo4j_uri = os.getenv("COMIND_NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("COMIND_NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("COMIND_NEO4J_PASSWORD", "comind123")
+            
+            self.graph_sync_service = create_graph_sync_service(
+                neo4j_uri=neo4j_uri,
+                neo4j_user=neo4j_user,
+                neo4j_password=neo4j_password,
+                record_manager=self
+            )
+            logger.info("Graph sync service initialized successfully")
+        except ImportError as e:
+            logger.warning(f"Graph sync dependencies not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to initialize graph sync service: {e}")
+            # Don't fail if graph sync can't be initialized
+
+    def _sync_record_to_graph(self, record_response, collection: str, record_data: Dict):
+        """Sync a newly created record to the graph database."""
+        if not self.graph_sync_service:
+            return
+            
+        try:
+            # Use the sync_record method directly with the data we have
+            self.graph_sync_service.sync_record_data(
+                uri=record_response.uri,
+                cid=record_response.cid,
+                value=record_data,
+                collection=collection
+            )
+            logger.debug(f"Successfully synced record {record_response.uri} to graph database")
+        except Exception as e:
+            # Log the error but don't fail the record creation
+            logger.error(f"Failed to sync record {record_response.uri} to graph database: {e}")
+
+    def sphere_record(self, target: str, sphere_uri: Optional[str] = None):
         if sphere_uri is None:
             sphere_uri = self.sphere_uri
 
@@ -196,11 +250,17 @@ class RecordManager:
         try:
             response = self.client.com.atproto.repo.create_record(create_params)
 
+            # Sync to graph database if enabled
+            self._sync_record_to_graph(response, collection, record)
+
             if self.sphere_uri is not None:
                 logger.debug(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
-                self.client.com.atproto.repo.create_record(
+                sphere_response = self.client.com.atproto.repo.create_record(
                     self.sphere_record(response.uri, self.sphere_uri)
                 )
+                # Also sync the sphere relationship to graph
+                sphere_record_data = self.sphere_record(response.uri, self.sphere_uri)['record']
+                self._sync_record_to_graph(sphere_response, "me.comind.relationship.sphere", sphere_record_data)
 
             logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
             # logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")

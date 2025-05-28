@@ -196,6 +196,23 @@ class GraphSyncService:
             logger.error(f"Record has None attributes: uri={uri}, cid={cid}, value={value}")
             return
 
+        self.sync_record_data(uri, cid, value, collection)
+
+    def sync_record_data(self, uri: str, cid: str, value: Dict, collection: str):
+        """
+        Sync record data directly to Neo4j.
+
+        Args:
+            uri: Record URI
+            cid: Record CID
+            value: Record value/content
+            collection: The collection this record belongs to
+        """
+        # Check for None values
+        if uri is None or cid is None or value is None:
+            logger.error(f"Record has None attributes: uri={uri}, cid={cid}, value={value}")
+            return
+
         # Determine record type and create appropriate node
         if collection == "me.comind.concept":
             self._create_concept_node(uri, cid, value)
@@ -327,9 +344,6 @@ class GraphSyncService:
         target_uri = value.get('target', '')
         relationship_type = value.get('relationship', 'RELATES_TO')
 
-        print("Target URI:", target_uri )
-        print("Source URI:", source_uri )
-        print("Relationship Type:", relationship_type)
 
         query = """
         MERGE (source {uri: $source_uri})

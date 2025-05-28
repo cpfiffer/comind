@@ -431,7 +431,7 @@ async def process_event(
             logger.debug(f"Uploading comind result for {post_uri}")
             comind.upload(
                 result,
-                RecordManager(client), # Consider passing the existing record_manager if appropriate
+                RecordManager(client, enable_graph_sync=True), # Enable graph sync for real-time injection
                 target=post_uri,
                 from_refs=list_of_strong_refs # Pass the collected references
             )
@@ -711,7 +711,7 @@ async def main():
 
     # Log in to ATProto
     atproto_client = session_reuse.init_client(args.username, args.password)
-    record_manager = RecordManager(atproto_client)
+    record_manager = RecordManager(atproto_client, enable_graph_sync=True)
 
     # Get lists of spheres
     spheres = record_manager.list_records("me.comind.sphere.core")
