@@ -158,12 +158,49 @@ The `scripts/services.sh` script includes graph operations:
 
 ## Sync Process
 
-The sync service maps ATProto records to graph nodes and relationships:
+The graph database provides both batch and real-time synchronization capabilities:
+
+### Real-Time Sync (Recommended)
+
+New in Comind: **Automatic real-time graph injection** that syncs records to Neo4j as they're created.
+
+When enabled, the graph database stays continuously updated with new concepts, thoughts, emotions, and relationships created by your Comind instance. This happens automatically without any manual intervention.
+
+**Enable real-time sync:**
+
+```bash
+# 1. First, start the database services
+./scripts/services.sh start database
+
+# 2. Set environment variable  
+export COMIND_GRAPH_SYNC_ENABLED=true
+
+# 3. Then run your Comind instance normally
+python src/jetstream_consumer.py --comind conceptualizer
+```
+
+**Important**: Make sure Neo4j is running before enabling real-time sync. Check service status with:
+```bash
+./scripts/services.sh status
+```
+
+Real-time sync can also be enabled programmatically:
+
+```python
+from src.record_manager import RecordManager
+
+# Enable graph sync when creating records
+record_manager = RecordManager(client, enable_graph_sync=True)
+```
+
+### Batch Sync
+
+The batch sync service maps ATProto records to graph nodes and relationships:
 
 1. **Schema Setup**: Creates constraints and indexes for optimal performance
 2. **Node Creation**: Converts records to typed nodes (Concept, Thought, etc.)
 3. **Relationship Mapping**: Creates edges based on record references
-4. **Incremental Updates**: Supports partial syncing of specific collections
+4. **Collection Updates**: Supports syncing specific record collections
 
 ### Supported Collections
 

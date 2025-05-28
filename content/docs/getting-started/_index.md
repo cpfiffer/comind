@@ -95,6 +95,42 @@ Access Neo4j shell directly:
 ./scripts/services.sh shell
 ```
 
+#### Real-Time Graph Integration
+
+Comind can automatically sync new concepts, thoughts, and emotions to the Neo4j graph database as they're created. This provides immediate access to your evolving knowledge graph for analysis and exploration.
+
+**Prerequisites: Start the database services first**
+
+Before enabling real-time graph sync, make sure Neo4j is running:
+
+```bash
+# Start the database services
+./scripts/services.sh start database
+
+# Or start all services (database + inference)
+./scripts/services.sh start all
+
+# Check that services are running
+./scripts/services.sh status
+```
+
+To enable real-time graph sync, add this to your `.env` file:
+```bash
+COMIND_GRAPH_SYNC_ENABLED=true
+```
+
+With real-time sync enabled, you can immediately query new concepts in Neo4j Browser (http://localhost:7474):
+
+```cypher
+// See recently created concepts
+MATCH (c:Concept) 
+WHERE c.createdAt > datetime() - duration({minutes: 5})
+RETURN c.text, c.createdAt
+ORDER BY c.createdAt DESC
+```
+
+For more advanced graph queries and analysis, see the [Graph Database documentation](/docs/graph-database).
+
 ### Inference Services (vLLM)
 
 If you have sufficient hardware (particularly a GPU with enough VRAM), you can run the LLM and embedding servers locally using Docker Compose.
@@ -193,6 +229,12 @@ COMIND_LLM_SERVER_API_KEY=your-api-key  # if required by your LLM server
 # Embedding server info
 COMIND_EMBEDDING_SERVER_URL=http://your-embedding-server:8000/v1/
 COMIND_EMBEDDING_SERVER_API_KEY=your-api-key  # if required
+
+# Graph database configuration (optional)
+COMIND_GRAPH_SYNC_ENABLED=true  # Enable real-time Neo4j injection
+COMIND_NEO4J_URI=bolt://localhost:7687  # Neo4j connection
+COMIND_NEO4J_USER=neo4j
+COMIND_NEO4J_PASSWORD=comind123
 
 # ATProto server info (usually don't need to change)
 COMIND_PDS_URI=https://bsky.social
