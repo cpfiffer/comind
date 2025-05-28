@@ -39,6 +39,9 @@ Examples:
   # Sync only concepts
   python scripts/graph_sync.py --sync-collection me.comind.concept
   
+  # Clean up duplicate concept nodes
+  python scripts/graph_sync.py --cleanup-duplicates
+  
   # Get concept network for "distributed systems"
   python scripts/graph_sync.py --concept-network "distributed systems"
   
@@ -69,6 +72,8 @@ Examples:
                        help="Sync specific collection (e.g., me.comind.concept)")
     parser.add_argument("--include-external", action="store_true",
                        help="Include external collections like posts when syncing all")
+    parser.add_argument("--cleanup-duplicates", action="store_true",
+                       help="Clean up duplicate concept nodes in the database")
     
     # Query operations
     parser.add_argument("--concept-network", type=str,
@@ -106,6 +111,12 @@ Examples:
             logger.info("Setting up Neo4j schema...")
             sync_service.setup_schema()
             logger.info("Schema setup complete")
+        
+        # Cleanup operations
+        if args.cleanup_duplicates:
+            logger.info("Cleaning up duplicate concept nodes...")
+            cleanup_count = sync_service.cleanup_duplicate_concept_nodes()
+            logger.info(f"Cleanup complete. Removed {cleanup_count} duplicate nodes")
         
         # Sync operations
         if args.sync_all:
