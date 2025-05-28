@@ -1,14 +1,14 @@
 # Comind Docker Compose Configuration
-# 
+#
 # Usage:
 #   docker-compose --profile inference up    # Start inference services only
-#   docker-compose --profile database up     # Start database services only  
+#   docker-compose --profile database up     # Start database services only
 #   docker-compose --profile all up          # Start all services
 #   docker-compose up                        # Start core services (database only)
 
 services:
   # === INFERENCE SERVICES ===
-  
+
   srv-llm:
     image: vllm/vllm-openai:latest
     runtime: nvidia
@@ -51,10 +51,10 @@ services:
       --trust-remote-code
 
   # === DATABASE SERVICES ===
-  
+
   neo4j:
-    image: neo4j:5.15-community
-    profiles: ["database", "all", ""]  # Empty profile means it runs by default
+    image: neo4j:5.26.7-community-bullseye
+    profiles: ["database", "all", ""] # Empty profile means it runs by default
     environment:
       NEO4J_AUTH: neo4j/comind123
       NEO4J_PLUGINS: '["apoc"]'
@@ -68,10 +68,11 @@ services:
       - neo4j_import:/var/lib/neo4j/import
       - neo4j_plugins:/plugins
     ports:
-      - "7474:7474"    # HTTP
-      - "7687:7687"    # Bolt
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "comind123", "RETURN 1"]
+      test:
+        ["CMD", "cypher-shell", "-u", "neo4j", "-p", "comind123", "RETURN 1"]
       interval: 30s
       timeout: 10s
       retries: 5
