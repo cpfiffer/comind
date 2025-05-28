@@ -7,18 +7,16 @@ and analysis of the Comind knowledge network.
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
-import json
 
 from neo4j import GraphDatabase
-from atproto import Client as AtProtoClient
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("graph_sync")
+
 
 class GraphSyncService:
     """
@@ -38,18 +36,23 @@ class GraphSyncService:
         "me.comind.relationship.concept",
         "me.comind.relationship.link",
         "me.comind.relationship.sphere",
-        "me.comind.relationship.similarity"
+        "me.comind.relationship.similarity",
     ]
 
     # External collections that may be referenced
     EXTERNAL_COLLECTIONS = [
         "app.bsky.feed.post",
         "app.bsky.feed.like",
-        "app.bsky.graph.follow"
+        "app.bsky.graph.follow",
     ]
 
-    def __init__(self, neo4j_uri: str, neo4j_user: str, neo4j_password: str,
-                 record_manager: Any = None):
+    def __init__(
+        self,
+        neo4j_uri: str,
+        neo4j_user: str,
+        neo4j_password: str,
+        record_manager: Any = None,
+    ):
         """
         Initialize the Graph Sync Service.
 
@@ -60,7 +63,9 @@ class GraphSyncService:
             record_manager: Authenticated RecordManager instance (optional)
         """
         self.record_manager = record_manager
-        self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+        self.driver = GraphDatabase.driver(
+            neo4j_uri, auth=(neo4j_user, neo4j_password)
+        )
 
         # Verify connection
         try:
@@ -90,14 +95,13 @@ class GraphSyncService:
             "CREATE CONSTRAINT sphere_uri IF NOT EXISTS FOR (s:Sphere) REQUIRE s.uri IS UNIQUE",
             "CREATE CONSTRAINT post_uri IF NOT EXISTS FOR (p:Post) REQUIRE p.uri IS UNIQUE",
             "CREATE CONSTRAINT repo_did IF NOT EXISTS FOR (r:Repo) REQUIRE r.did IS UNIQUE",
-
             # Indexes for common queries
             "CREATE INDEX concept_text IF NOT EXISTS FOR (c:Concept) ON (c.text)",
             "CREATE INDEX thought_type IF NOT EXISTS FOR (t:Thought) ON (t.thoughtType)",
             "CREATE INDEX emotion_type IF NOT EXISTS FOR (e:Emotion) ON (e.emotionType)",
             "CREATE INDEX sphere_title IF NOT EXISTS FOR (s:Sphere) ON (s.title)",
             "CREATE INDEX repo_handle IF NOT EXISTS FOR (r:Repo) ON (r.handle)",
-            "CREATE INDEX created_at IF NOT EXISTS FOR (n) ON (n.createdAt)"
+            "CREATE INDEX created_at IF NOT EXISTS FOR (n) ON (n.createdAt)",
         ]
 
         with self.driver.session() as session:
@@ -106,7 +110,9 @@ class GraphSyncService:
                     session.run(query)
                     logger.debug(f"Executed schema query: {query[:50]}...")
                 except Exception as e:
-                    logger.warning(f"Schema query failed (may already exist): {e}")
+                    logger.warning(
+                        f"Schema query failed (may already exist): {e}"
+                    )
 
         logger.info("Neo4j schema setup complete")
 
@@ -133,7 +139,9 @@ class GraphSyncService:
             except Exception as e:
                 logger.error(f"Failed to sync collection {collection}: {e}")
 
-        logger.info(f"Full sync complete. Total records synced: {total_synced}")
+        logger.info(
+            f"Full sync complete. Total records synced: {total_synced}"
+        )
         return total_synced
 
     def sync_collection(self, collection: str) -> int:
@@ -163,6 +171,7 @@ class GraphSyncService:
                     synced_count += 1
                 except Exception as e:
                     import traceback
+
                     logger.error(f"Failed to sync record {record.uri}: {e}")
                     logger.error(f"Full traceback: {traceback.format_exc()}")
                     # Also debug the record structure
@@ -172,7 +181,9 @@ class GraphSyncService:
             return synced_count
 
         except Exception as e:
-            logger.error(f"Failed to list records in collection {collection}: {e}")
+            logger.error(
+                f"Failed to list records in collection {collection}: {e}"
+            )
             raise
 
     def sync_record(self, record: Any, collection: str):
@@ -187,18 +198,22 @@ class GraphSyncService:
         record_dict = record.model_dump()
 
         # Extract basic properties
-        uri = record_dict.get('uri')
-        cid = record_dict.get('cid')
-        value = record_dict.get('value')
+        uri = record_dict.get("uri")
+        cid = record_dict.get("cid")
+        value = record_dict.get("value")
 
         # Check for None values
         if uri is None or cid is None or value is None:
-            logger.error(f"Record has None attributes: uri={uri}, cid={cid}, value={value}")
+            logger.error(
+                f"Record has None attributes: uri={uri}, cid={cid}, value={value}"
+            )
             return
 
         self.sync_record_data(uri, cid, value, collection)
 
-    def sync_record_data(self, uri: str, cid: str, value: Dict, collection: str):
+    def sync_record_data(
+        self, uri: str, cid: str, value: Dict, collection: str
+    ):
         """
         Sync record data directly to Neo4j.
 
@@ -210,14 +225,13 @@ class GraphSyncService:
         """
         # Check for None values
         if uri is None or cid is None or value is None:
-            logger.error(f"Record has None attributes: uri={uri}, cid={cid}, value={value}")
+            logger.error(
+                f"Record has None attributes: uri={uri}, cid={cid}, value={value}"
+            )
             return
 
-        # Extract DID from URI and ensure Repo node exists
-        did = self._extract_did_from_uri(uri)
-        if did:
-            self._ensure_repo_node(did)
-            self._create_repo_ownership(did, uri, cid, value.get('createdAt', ''))
+        # Note: Repo nodes and OWNS relationships are now handled directly
+        # in the individual node creation methods to prevent duplicate nodes
 
         # Determine record type and create appropriate node
         if collection == "me.comind.concept":
@@ -243,8 +257,12 @@ class GraphSyncService:
         """Extract the DID from an ATProto URI."""
         try:
             # URI format: at://did:plc:example/collection/rkey
-            parts = uri.split('/')
-            if len(parts) >= 3 and parts[0] == 'at:' and parts[2].startswith('did:'):
+            parts = uri.split("/")
+            if (
+                len(parts) >= 3
+                and parts[0] == "at:"
+                and parts[2].startswith("did:")
+            ):
                 return parts[2]
             return None
         except Exception as e:
@@ -258,58 +276,65 @@ class GraphSyncService:
         ON CREATE SET r.createdAt = datetime()
         ON MATCH SET r.updatedAt = datetime()
         """
-        
-        params = {'did': did}
+
+        params = {"did": did}
         if handle:
             query += " SET r.handle = $handle"
-            params['handle'] = handle
+            params["handle"] = handle
 
         with self.driver.session() as session:
             session.run(query, params)
 
-    def _create_repo_ownership(self, did: str, record_uri: str, record_cid: str, created_at: str):
+    def _create_repo_ownership(
+        self, did: str, record_uri: str, record_cid: str, created_at: str
+    ):
         """Create an OWNS relationship between a Repo and a record."""
+        # Note: We don't create the record node here anymore since it will be created
+        # with proper labels by the specific node creation methods (_create_concept_node, etc.)
+        # We'll establish the OWNS relationship later if needed
+        pass
+
+    def _create_concept_node(self, uri: str, cid: str, value: Dict):
+        """Create a Concept node in Neo4j."""
+        # Extract DID from URI for OWNS relationship
+        did = self._extract_did_from_uri(uri)
+        created_at = value.get("createdAt", "")
+
         query = """
-        MATCH (repo:Repo {did: $did})
-        MERGE (record {uri: $record_uri})
-        ON CREATE SET record.cid = $record_cid,
-                      record.createdAt = $created_at
-        MERGE (repo)-[r:OWNS]->(record)
+        MERGE (repo:Repo {did: $did})
+        ON CREATE SET repo.createdAt = datetime()
+        ON MATCH SET repo.updatedAt = datetime()
+        MERGE (c:Concept {uri: $uri})
+        SET c.cid = $cid,
+            c.text = $text,
+            c.createdAt = $created_at,
+            c.updatedAt = datetime()
+        MERGE (repo)-[r:OWNS]->(c)
         ON CREATE SET r.createdAt = $created_at,
                       r.updatedAt = datetime()
         ON MATCH SET r.updatedAt = datetime()
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
                 did=did,
-                record_uri=record_uri,
-                record_cid=record_cid,
-                created_at=created_at
-            )
-
-    def _create_concept_node(self, uri: str, cid: str, value: Dict):
-        """Create a Concept node in Neo4j."""
-
-        query = """
-        MERGE (c:Concept {uri: $uri})
-        SET c.cid = $cid,
-            c.text = $text,
-            c.updatedAt = datetime()
-        """
-
-        with self.driver.session() as session:
-            session.run(query,
                 uri=uri,
                 cid=cid,
-                text=value.get('concept', '')
+                text=value.get("concept", ""),
+                created_at=created_at,
             )
 
     def _create_thought_node(self, uri: str, cid: str, value: Dict):
         """Create a Thought node in Neo4j."""
-        generated = value.get('generated', {})
+        generated = value.get("generated", {})
+        did = self._extract_did_from_uri(uri)
+        created_at = value.get("createdAt", "")
 
         query = """
+        MERGE (repo:Repo {did: $did})
+        ON CREATE SET repo.createdAt = datetime()
+        ON MATCH SET repo.updatedAt = datetime()
         MERGE (t:Thought {uri: $uri})
         SET t.cid = $cid,
             t.text = $text,
@@ -318,44 +343,67 @@ class GraphSyncService:
             t.confidence = $confidence,
             t.createdAt = $createdAt,
             t.updatedAt = datetime()
+        MERGE (repo)-[r:OWNS]->(t)
+        ON CREATE SET r.createdAt = $createdAt,
+                      r.updatedAt = datetime()
+        ON MATCH SET r.updatedAt = datetime()
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
+                did=did,
                 uri=uri,
                 cid=cid,
-                text=generated.get('text', ''),
-                thoughtType=generated.get('thoughtType', ''),
-                context=generated.get('context', ''),
-                confidence=generated.get('confidence'),
-                createdAt=value.get('createdAt', '')
+                text=generated.get("text", ""),
+                thoughtType=generated.get("thoughtType", ""),
+                context=generated.get("context", ""),
+                confidence=generated.get("confidence"),
+                createdAt=created_at,
             )
 
     def _create_emotion_node(self, uri: str, cid: str, value: Dict):
         """Create an Emotion node in Neo4j."""
-        generated = value.get('generated', {})
+        generated = value.get("generated", {})
+        did = self._extract_did_from_uri(uri)
+        created_at = value.get("createdAt", "")
 
         query = """
+        MERGE (repo:Repo {did: $did})
+        ON CREATE SET repo.createdAt = datetime()
+        ON MATCH SET repo.updatedAt = datetime()
         MERGE (e:Emotion {uri: $uri})
         SET e.cid = $cid,
             e.text = $text,
             e.emotionType = $emotionType,
             e.createdAt = $createdAt,
             e.updatedAt = datetime()
+        MERGE (repo)-[r:OWNS]->(e)
+        ON CREATE SET r.createdAt = $createdAt,
+                      r.updatedAt = datetime()
+        ON MATCH SET r.updatedAt = datetime()
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
+                did=did,
                 uri=uri,
                 cid=cid,
-                text=generated.get('text', ''),
-                emotionType=generated.get('emotionType', ''),
-                createdAt=value.get('createdAt', '')
+                text=generated.get("text", ""),
+                emotionType=generated.get("emotionType", ""),
+                createdAt=created_at,
             )
 
     def _create_sphere_node(self, uri: str, cid: str, value: Dict):
         """Create a Sphere node in Neo4j."""
+        did = self._extract_did_from_uri(uri)
+        created_at = value.get("createdAt", "")
+
         query = """
+        MERGE (repo:Repo {did: $did})
+        ON CREATE SET repo.createdAt = datetime()
+        ON MATCH SET repo.updatedAt = datetime()
         MERGE (s:Sphere {uri: $uri})
         SET s.cid = $cid,
             s.title = $title,
@@ -363,16 +411,22 @@ class GraphSyncService:
             s.description = $description,
             s.createdAt = $createdAt,
             s.updatedAt = datetime()
+        MERGE (repo)-[r:OWNS]->(s)
+        ON CREATE SET r.createdAt = $createdAt,
+                      r.updatedAt = datetime()
+        ON MATCH SET r.updatedAt = datetime()
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
+                did=did,
                 uri=uri,
                 cid=cid,
-                title=value.get('title', ''),
-                text=value.get('text', ''),
-                description=value.get('description', ''),
-                createdAt=value.get('createdAt', '')
+                title=value.get("title", ""),
+                text=value.get("text", ""),
+                description=value.get("description", ""),
+                createdAt=created_at,
             )
 
     def _create_post_node(self, uri: str, cid: str, value: Dict):
@@ -386,19 +440,19 @@ class GraphSyncService:
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
                 uri=uri,
                 cid=cid,
-                text=value.get('text', ''),
-                createdAt=value.get('createdAt', '')
+                text=value.get("text", ""),
+                createdAt=value.get("createdAt", ""),
             )
 
     def _create_concept_relationship(self, uri: str, cid: str, value: Dict):
         """Create a relationship between source and concept."""
-        source_uri = value.get('source', '')
-        target_uri = value.get('target', '')
-        relationship_type = value.get('relationship', 'RELATES_TO')
-
+        source_uri = value.get("source", "")
+        target_uri = value.get("target", "")
+        relationship_type = value.get("relationship", "RELATES_TO")
 
         query = """
         MERGE (source {uri: $source_uri})
@@ -416,22 +470,25 @@ class GraphSyncService:
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
                 uri=uri,
                 cid=cid,
                 source_uri=source_uri,
                 target_uri=target_uri,
                 relationship=relationship_type,
-                createdAt=value.get('createdAt', '')
+                createdAt=value.get("createdAt", ""),
             )
 
     def _create_link_relationship(self, uri: str, cid: str, value: Dict):
         """Create a general link relationship between nodes."""
-        source = value.get('source', {})
-        source_uri = source.get('uri', '') if isinstance(source, dict) else source
-        target_uri = value.get('target', '')
-        generated = value.get('generated', {})
-        relationship_type = generated.get('relationship', 'LINKS_TO')
+        source = value.get("source", {})
+        source_uri = (
+            source.get("uri", "") if isinstance(source, dict) else source
+        )
+        target_uri = value.get("target", "")
+        generated = value.get("generated", {})
+        relationship_type = generated.get("relationship", "LINKS_TO")
 
         query = """
         MERGE (source {uri: $source_uri})
@@ -453,26 +510,27 @@ class GraphSyncService:
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
                 uri=uri,
                 cid=cid,
                 source_uri=source_uri,
                 target_uri=target_uri,
                 relationship=relationship_type,
-                strength=generated.get('strength'),
-                note=generated.get('note', ''),
-                createdAt=value.get('createdAt', '')
+                strength=generated.get("strength"),
+                note=generated.get("note", ""),
+                createdAt=value.get("createdAt", ""),
             )
 
     def _create_sphere_relationship(self, uri: str, cid: str, value: Dict):
         """Create a relationship between content and sphere."""
-        target = value.get('target', '')
+        target = value.get("target", "")
         # Handle strongRef format (object with uri and cid) or plain string
         if isinstance(target, dict):
-            target_uri = target.get('uri', '')
+            target_uri = target.get("uri", "")
         else:
             target_uri = target
-        sphere_uri = value.get('sphere_uri', '')
+        sphere_uri = value.get("sphere_uri", "")
 
         query = """
         MERGE (target {uri: $target_uri})
@@ -488,12 +546,13 @@ class GraphSyncService:
         """
 
         with self.driver.session() as session:
-            session.run(query,
+            session.run(
+                query,
                 uri=uri,
                 cid=cid,
                 target_uri=target_uri,
                 sphere_uri=sphere_uri,
-                createdAt=value.get('createdAt', '')
+                createdAt=value.get("createdAt", ""),
             )
 
     def get_concept_network(self, concept_text: str, depth: int = 2) -> Dict:
@@ -519,20 +578,25 @@ class GraphSyncService:
             relationships = []
 
             for record in result:
-                path = record['path']
+                path = record["path"]
                 for node in path.nodes:
                     nodes.add((node.id, dict(node)))
                 for rel in path.relationships:
-                    relationships.append({
-                        'start': rel.start_node.id,
-                        'end': rel.end_node.id,
-                        'type': rel.type,
-                        'properties': dict(rel)
-                    })
+                    relationships.append(
+                        {
+                            "start": rel.start_node.id,
+                            "end": rel.end_node.id,
+                            "type": rel.type,
+                            "properties": dict(rel),
+                        }
+                    )
 
             return {
-                'nodes': [{'id': node_id, 'properties': props} for node_id, props in nodes],
-                'relationships': relationships
+                "nodes": [
+                    {"id": node_id, "properties": props}
+                    for node_id, props in nodes
+                ],
+                "relationships": relationships,
             }
 
     def get_sphere_concepts(self, sphere_title: str) -> List[Dict]:
@@ -554,8 +618,13 @@ class GraphSyncService:
 
         with self.driver.session() as session:
             result = session.run(query, sphere_title=sphere_title)
-            return [{'concept': record['concept'], 'frequency': record['frequency']}
-                   for record in result]
+            return [
+                {
+                    "concept": record["concept"],
+                    "frequency": record["frequency"],
+                }
+                for record in result
+            ]
 
     def find_concept_clusters(self, min_connections: int = 3) -> List[Dict]:
         """
@@ -583,11 +652,83 @@ class GraphSyncService:
             result = session.run(query, min_connections=min_connections)
             return [dict(record) for record in result]
 
+    def cleanup_duplicate_concept_nodes(self) -> int:
+        """
+        Clean up duplicate concept nodes by merging unlabeled nodes with Concept labeled nodes.
 
-def create_graph_sync_service(neo4j_uri: str = "bolt://localhost:7687",
-                            neo4j_user: str = "neo4j",
-                            neo4j_password: str = "comind123",
-                            record_manager: Any = None) -> GraphSyncService:
+        Returns:
+            Number of duplicate nodes cleaned up
+        """
+        logger.info("Starting cleanup of duplicate concept nodes...")
+
+        # Find unlabeled nodes that have the same URI as Concept nodes
+        query = """
+        MATCH (unlabeled) WHERE NOT unlabeled:Concept AND NOT unlabeled:Thought AND NOT unlabeled:Emotion AND NOT unlabeled:Sphere AND NOT unlabeled:Post AND NOT unlabeled:Repo
+        MATCH (concept:Concept {uri: unlabeled.uri})
+        WITH unlabeled, concept, unlabeled.uri as duplicate_uri
+        
+        // Transfer any relationships from unlabeled node to concept node
+        OPTIONAL MATCH (unlabeled)-[r]->(target)
+        WHERE target <> concept
+        WITH unlabeled, concept, duplicate_uri, collect({rel: r, target: target}) as outgoing_rels
+        
+        OPTIONAL MATCH (source)-[r]->(unlabeled)
+        WHERE source <> concept
+        WITH unlabeled, concept, duplicate_uri, outgoing_rels, collect({rel: r, source: source}) as incoming_rels
+        
+        RETURN unlabeled, concept, duplicate_uri, outgoing_rels, incoming_rels
+        """
+
+        cleanup_count = 0
+
+        with self.driver.session() as session:
+            result = session.run(query)
+
+            for record in result:
+                unlabeled = record["unlabeled"]
+                concept = record["concept"]
+                duplicate_uri = record["duplicate_uri"]
+
+                # Transfer relationships and delete unlabeled node
+                transfer_query = """
+                MATCH (unlabeled) WHERE id(unlabeled) = $unlabeled_id
+                MATCH (concept:Concept) WHERE id(concept) = $concept_id
+                
+                // Transfer OWNS relationships to the concept node
+                OPTIONAL MATCH (repo:Repo)-[owns:OWNS]->(unlabeled)
+                WITH unlabeled, concept, repo, owns
+                WHERE repo IS NOT NULL
+                MERGE (repo)-[new_owns:OWNS]->(concept)
+                ON CREATE SET new_owns = properties(owns)
+                DELETE owns
+                
+                // Delete the unlabeled duplicate node
+                DETACH DELETE unlabeled
+                """
+
+                session.run(
+                    transfer_query,
+                    unlabeled_id=unlabeled.id,
+                    concept_id=concept.id,
+                )
+
+                cleanup_count += 1
+                logger.debug(
+                    f"Cleaned up duplicate node for URI: {duplicate_uri}"
+                )
+
+        logger.info(
+            f"Cleanup complete. Removed {cleanup_count} duplicate concept nodes"
+        )
+        return cleanup_count
+
+
+def create_graph_sync_service(
+    neo4j_uri: str = "bolt://localhost:7687",
+    neo4j_user: str = "neo4j",
+    neo4j_password: str = "comind123",
+    record_manager: Any = None,
+) -> GraphSyncService:
     """
     Factory function to create a GraphSyncService instance.
 
@@ -603,29 +744,43 @@ def create_graph_sync_service(neo4j_uri: str = "bolt://localhost:7687",
     if record_manager is None:
         from session_reuse import default_login
         from record_manager import RecordManager
+
         client = default_login()
         record_manager = RecordManager(client)
 
-    return GraphSyncService(neo4j_uri, neo4j_user, neo4j_password, record_manager)
+    return GraphSyncService(
+        neo4j_uri, neo4j_user, neo4j_password, record_manager
+    )
 
 
 if __name__ == "__main__":
     # Example usage
     import argparse
 
-    parser = argparse.ArgumentParser(description="Sync ATProto records to Neo4j")
-    parser.add_argument("--neo4j-uri", default="bolt://localhost:7687",
-                       help="Neo4j URI")
-    parser.add_argument("--neo4j-user", default="neo4j",
-                       help="Neo4j username")
-    parser.add_argument("--neo4j-password", default="comind123",
-                       help="Neo4j password")
-    parser.add_argument("--setup-schema", action="store_true",
-                       help="Set up Neo4j schema")
-    parser.add_argument("--sync-all", action="store_true",
-                       help="Sync all records")
-    parser.add_argument("--collection", type=str,
-                       help="Sync specific collection")
+    parser = argparse.ArgumentParser(
+        description="Sync ATProto records to Neo4j"
+    )
+    parser.add_argument(
+        "--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI"
+    )
+    parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j username")
+    parser.add_argument(
+        "--neo4j-password", default="comind123", help="Neo4j password"
+    )
+    parser.add_argument(
+        "--setup-schema", action="store_true", help="Set up Neo4j schema"
+    )
+    parser.add_argument(
+        "--sync-all", action="store_true", help="Sync all records"
+    )
+    parser.add_argument(
+        "--collection", type=str, help="Sync specific collection"
+    )
+    parser.add_argument(
+        "--cleanup-duplicates",
+        action="store_true",
+        help="Clean up duplicate concept nodes",
+    )
 
     args = parser.parse_args()
 
@@ -637,6 +792,9 @@ if __name__ == "__main__":
 
         if args.setup_schema:
             sync_service.setup_schema()
+
+        if args.cleanup_duplicates:
+            sync_service.cleanup_duplicate_concept_nodes()
 
         if args.sync_all:
             sync_service.sync_all_records()
