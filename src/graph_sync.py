@@ -89,12 +89,14 @@ class GraphSyncService:
             "CREATE CONSTRAINT emotion_uri IF NOT EXISTS FOR (e:Emotion) REQUIRE e.uri IS UNIQUE",
             "CREATE CONSTRAINT sphere_uri IF NOT EXISTS FOR (s:Sphere) REQUIRE s.uri IS UNIQUE",
             "CREATE CONSTRAINT post_uri IF NOT EXISTS FOR (p:Post) REQUIRE p.uri IS UNIQUE",
+            "CREATE CONSTRAINT repo_did IF NOT EXISTS FOR (r:Repo) REQUIRE r.did IS UNIQUE",
 
             # Indexes for common queries
             "CREATE INDEX concept_text IF NOT EXISTS FOR (c:Concept) ON (c.text)",
             "CREATE INDEX thought_type IF NOT EXISTS FOR (t:Thought) ON (t.thoughtType)",
             "CREATE INDEX emotion_type IF NOT EXISTS FOR (e:Emotion) ON (e.emotionType)",
             "CREATE INDEX sphere_title IF NOT EXISTS FOR (s:Sphere) ON (s.title)",
+            "CREATE INDEX repo_handle IF NOT EXISTS FOR (r:Repo) ON (r.handle)",
             "CREATE INDEX created_at IF NOT EXISTS FOR (n) ON (n.createdAt)"
         ]
 
@@ -211,6 +213,12 @@ class GraphSyncService:
             logger.error(f"Record has None attributes: uri={uri}, cid={cid}, value={value}")
             return
 
+        # Extract DID from URI and ensure Repo node exists
+        did = self._extract_did_from_uri(uri)
+        if did:
+            self._ensure_repo_node(did)
+            self._create_repo_ownership(did, uri, cid, value.get('createdAt', ''))
+
         # Determine record type and create appropriate node
         if collection == "me.comind.concept":
             self._create_concept_node(uri, cid, value)
@@ -230,6 +238,55 @@ class GraphSyncService:
             self._create_post_node(uri, cid, value)
         else:
             logger.warning(f"Unknown collection type: {collection}")
+
+    def _extract_did_from_uri(self, uri: str) -> Optional[str]:
+        """Extract the DID from an ATProto URI."""
+        try:
+            # URI format: at://did:plc:example/collection/rkey
+            parts = uri.split('/')
+            if len(parts) >= 3 and parts[0] == 'at:' and parts[2].startswith('did:'):
+                return parts[2]
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to extract DID from URI {uri}: {e}")
+            return None
+
+    def _ensure_repo_node(self, did: str, handle: str = None):
+        """Ensure a Repo node exists for the given DID."""
+        query = """
+        MERGE (r:Repo {did: $did})
+        ON CREATE SET r.createdAt = datetime()
+        ON MATCH SET r.updatedAt = datetime()
+        """
+        
+        params = {'did': did}
+        if handle:
+            query += " SET r.handle = $handle"
+            params['handle'] = handle
+
+        with self.driver.session() as session:
+            session.run(query, params)
+
+    def _create_repo_ownership(self, did: str, record_uri: str, record_cid: str, created_at: str):
+        """Create an OWNS relationship between a Repo and a record."""
+        query = """
+        MATCH (repo:Repo {did: $did})
+        MERGE (record {uri: $record_uri})
+        ON CREATE SET record.cid = $record_cid,
+                      record.createdAt = $created_at
+        MERGE (repo)-[r:OWNS]->(record)
+        ON CREATE SET r.createdAt = $created_at,
+                      r.updatedAt = datetime()
+        ON MATCH SET r.updatedAt = datetime()
+        """
+
+        with self.driver.session() as session:
+            session.run(query,
+                did=did,
+                record_uri=record_uri,
+                record_cid=record_cid,
+                created_at=created_at
+            )
 
     def _create_concept_node(self, uri: str, cid: str, value: Dict):
         """Create a Concept node in Neo4j."""
