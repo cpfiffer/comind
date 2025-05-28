@@ -13,8 +13,6 @@ import json
 from neo4j import GraphDatabase
 from atproto import Client as AtProtoClient
 
-from record_manager import RecordManager
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +49,7 @@ class GraphSyncService:
     ]
 
     def __init__(self, neo4j_uri: str, neo4j_user: str, neo4j_password: str,
-                 record_manager: RecordManager):
+                 record_manager: Any = None):
         """
         Initialize the Graph Sync Service.
 
@@ -59,7 +57,7 @@ class GraphSyncService:
             neo4j_uri: Neo4j connection URI (e.g., "bolt://localhost:7687")
             neo4j_user: Neo4j username
             neo4j_password: Neo4j password
-            record_manager: Authenticated RecordManager instance
+            record_manager: Authenticated RecordManager instance (optional)
         """
         self.record_manager = record_manager
         self.driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
@@ -527,7 +525,7 @@ class GraphSyncService:
 def create_graph_sync_service(neo4j_uri: str = "bolt://localhost:7687",
                             neo4j_user: str = "neo4j",
                             neo4j_password: str = "comind123",
-                            record_manager: Optional[RecordManager] = None) -> GraphSyncService:
+                            record_manager: Any = None) -> GraphSyncService:
     """
     Factory function to create a GraphSyncService instance.
 
@@ -542,6 +540,7 @@ def create_graph_sync_service(neo4j_uri: str = "bolt://localhost:7687",
     """
     if record_manager is None:
         from session_reuse import default_login
+        from record_manager import RecordManager
         client = default_login()
         record_manager = RecordManager(client)
 

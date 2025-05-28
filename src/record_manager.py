@@ -68,7 +68,14 @@ class RecordManager:
     def _initialize_graph_sync(self):
         """Initialize the graph sync service if dependencies are available."""
         try:
-            from graph_sync import create_graph_sync_service
+            # Try different import paths depending on execution context
+            try:
+                from src.graph_sync import create_graph_sync_service
+            except ImportError:
+                try:
+                    from graph_sync import create_graph_sync_service
+                except ImportError:
+                    from .graph_sync import create_graph_sync_service
             
             # Get Neo4j connection parameters from environment or use defaults
             neo4j_uri = os.getenv("COMIND_NEO4J_URI", "bolt://localhost:7687")
