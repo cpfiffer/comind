@@ -41,7 +41,7 @@ class RecordManager:
         Args:
             client: An authenticated ATProtoClient instance
             sphere: The sphere to use for the RecordManager. Optional.
-            enable_graph_sync: Whether to enable real-time graph sync. If None, 
+            enable_graph_sync: Whether to enable real-time graph sync. If None,
                               checks COMIND_GRAPH_SYNC_ENABLED environment variable.
         """
         self.client = client
@@ -58,7 +58,7 @@ class RecordManager:
         # Initialize graph sync if enabled
         if enable_graph_sync is None:
             enable_graph_sync = os.getenv("COMIND_GRAPH_SYNC_ENABLED", "false").lower() in ("true", "1", "yes")
-        
+
         if enable_graph_sync:
             self._initialize_graph_sync()
 
@@ -76,12 +76,12 @@ class RecordManager:
                     from graph_sync import create_graph_sync_service
                 except ImportError:
                     from .graph_sync import create_graph_sync_service
-            
+
             # Get Neo4j connection parameters from environment or use defaults
             neo4j_uri = os.getenv("COMIND_NEO4J_URI", "bolt://localhost:7687")
             neo4j_user = os.getenv("COMIND_NEO4J_USER", "neo4j")
             neo4j_password = os.getenv("COMIND_NEO4J_PASSWORD", "comind123")
-            
+
             self.graph_sync_service = create_graph_sync_service(
                 neo4j_uri=neo4j_uri,
                 neo4j_user=neo4j_user,
@@ -99,7 +99,7 @@ class RecordManager:
         """Sync a newly created record to the graph database."""
         if not self.graph_sync_service:
             return
-            
+
         try:
             # Use the sync_record method directly with the data we have
             self.graph_sync_service.sync_record_data(
@@ -113,10 +113,10 @@ class RecordManager:
             # Log the error but don't fail the record creation
             logger.error(f"Failed to sync record {record_response.uri} to graph database: {e}")
 
-    def sphere_record(self, target: str, sphere_uri: Optional[str] = None):
+    def sphere_relationship_record(self, target_uri: str, target_cid: str, sphere_uri: Optional[str] = None):
+        """Creates a record connecting a target URI and CID to a sphere URI."""
         if sphere_uri is None:
             sphere_uri = self.sphere_uri
-
 
         if sphere_uri is None:
             return None
@@ -126,7 +126,10 @@ class RecordManager:
                 'repo': self.client.me.did,
                 'record': {
                     'createdAt': datetime.now().isoformat(),
-                    'target': target,
+                    'target': {
+                        'uri': target_uri,
+                        'cid': target_cid
+                    },
                     'sphere_uri': sphere_uri
                 }
             }
@@ -259,20 +262,26 @@ class RecordManager:
 
             # Sync to graph database if enabled
             self._sync_record_to_graph(response, collection, record)
+            print("Sphere uri: ", self.sphere_uri)
 
             if self.sphere_uri is not None:
-                logger.debug(f"Creating sphere record: {self.sphere_record(response.uri, self.sphere_uri)}")
+                logger.info(f"Creating sphere record: {self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)}")
                 sphere_response = self.client.com.atproto.repo.create_record(
-                    self.sphere_record(response.uri, self.sphere_uri)
+                    self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)
                 )
+                logger.info(f"Successfully created sphere record: {sphere_response}")
+
                 # Also sync the sphere relationship to graph
-                sphere_record_data = self.sphere_record(response.uri, self.sphere_uri)['record']
+                sphere_record_data = self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)['record']
                 self._sync_record_to_graph(sphere_response, "me.comind.relationship.sphere", sphere_record_data)
 
-            logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
-            # logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            # logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+
+            # Rate limiting to avoid ATProto being mad at us
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
             time.sleep(RATE_LIMIT_SLEEP_SECONDS)
+
             return response
         except Exception as e:
             logger.error(f"Error creating record in {collection}: {str(e)}")
@@ -325,7 +334,7 @@ class RecordManager:
         logger.info(f"Listing all records in collection: {collection}")
         all_records = []
         cursor = None
-        
+
         try:
             while True:
                 params = {
@@ -333,20 +342,20 @@ class RecordManager:
                     'repo': self.client.me.did,
                     'limit': 100  # Use maximum limit for efficiency
                 }
-                
+
                 if cursor:
                     params['cursor'] = cursor
-                
+
                 response = self.client.com.atproto.repo.list_records(params)
                 all_records.extend(response.records)
-                
+
                 # Check if there are more records
                 if hasattr(response, 'cursor') and response.cursor:
                     cursor = response.cursor
                     logger.debug(f"Found {len(response.records)} records, continuing with cursor: {cursor}")
                 else:
                     break
-            
+
             logger.info(f"Found {len(all_records)} total records in collection: {collection}")
             return all_records
         except Exception as e:

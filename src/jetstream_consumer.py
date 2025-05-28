@@ -429,9 +429,15 @@ async def process_event(
         # Upload the result
         try:
             logger.debug(f"Uploading comind result for {post_uri}")
+            
+            # Get sphere URI if comind has sphere information
+            sphere_uri = None
+            if hasattr(comind, 'sphere_uri') and comind.sphere_uri:
+                sphere_uri = comind.sphere_uri
+            
             comind.upload(
                 result,
-                RecordManager(client, enable_graph_sync=True), # Enable graph sync for real-time injection
+                RecordManager(client, sphere_uri, enable_graph_sync=True), # Enable graph sync for real-time injection
                 target=post_uri,
                 from_refs=list_of_strong_refs # Pass the collected references
             )
@@ -756,6 +762,7 @@ async def main():
         comind.sphere_name = sphere_to_use.value["title"]
         comind.sphere_description = sphere_to_use.value["description"]
         comind.core_perspective = sphere_to_use.value["text"]
+        comind.sphere_uri = sphere_to_use["uri"]  # Add the sphere URI
     else:
         logger.warning("No sphere provided. Comind will not be attached to any sphere.")
 

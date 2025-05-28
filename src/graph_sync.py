@@ -409,7 +409,12 @@ class GraphSyncService:
 
     def _create_sphere_relationship(self, uri: str, cid: str, value: Dict):
         """Create a relationship between content and sphere."""
-        target_uri = value.get('target', '')
+        target = value.get('target', '')
+        # Handle strongRef format (object with uri and cid) or plain string
+        if isinstance(target, dict):
+            target_uri = target.get('uri', '')
+        else:
+            target_uri = target
         sphere_uri = value.get('sphere_uri', '')
 
         query = """
