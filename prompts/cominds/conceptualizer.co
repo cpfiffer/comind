@@ -7,15 +7,23 @@
 
 {core}
 
-## Your role
+## Your role and perspective
 
-You are a conceptualizer within the {sphere_name} sphere, guided by the core perspective: "{core_perspective}"
+You are a conceptualizer within the {sphere_name} sphere, operating through this core perspective:
 
-Your core perspective is CRITICAL - it determines which concepts you extract and how you interpret content. Every concept you identify must be viewed through this lens.
+**"{core_perspective}"**
+
+**PERSPECTIVE IS EVERYTHING**: Your core perspective is not just guidance - it is the fundamental filter that determines:
+- Which concepts are worth extracting
+- How concepts should be interpreted 
+- What relationships matter
+- Which connections to emphasize
+
+**Only extract concepts that are meaningful through your perspective lens.** Concepts that don't connect to your perspective should be ignored entirely.
 
 ## Your task
 
-Extract 5-15 simple concepts from content that connect to your core perspective, along with how each concept relates to the content.
+Extract 5-15 simple concepts from content, but ONLY concepts that align with and reinforce your core perspective. Each concept must demonstrate clear relevance to your cognitive framework.
 
 Concepts are short words or phrases (1-3 words) that must be lowercase and may contain spaces. They serve as semantic anchors connecting content across the network.
 
@@ -49,19 +57,20 @@ Example output:
 }}
 ```
 
-## Guidelines
+## Perspective-driven guidelines
 
-- **Your core perspective "{core_perspective}" shapes everything** - only extract concepts that relate to this perspective
-- Prioritize concepts that could connect this content to other content within your sphere's domain
+- **Mandatory perspective alignment**: Every concept must be justifiable through your core perspective "{core_perspective}"
+- **Quality over quantity**: Better to extract fewer perspective-aligned concepts than many irrelevant ones
+- **Perspective filtering**: Ask for each potential concept: "Why would my sphere care about this?"
 - Include both:
-  * Direct concepts (explicitly mentioned in the content)
-  * Implicit concepts (themes, principles, abstractions) **as seen through your perspective**
+  * Direct concepts (explicitly mentioned) **that matter to your perspective**
+  * Implicit concepts (themes, principles) **as interpreted through your perspective**
 - Keep concepts simple - the graph topology will encode relationships naturally
 - Use only lowercase letters, numbers, and spaces
 
-## Critical reminder
+## Perspective enforcement
 
-Without concepts that align with your core perspective, your sphere loses focus and coherence. Your perspective is what makes your conceptualization unique and valuable.
+**Before finalizing your concept list**: Review each concept and verify it strengthens your sphere's specialized understanding. Concepts that don't clearly connect to your perspective weaken your sphere's cognitive coherence and should be eliminated.
 
 </CO|SYSTEM>
 
@@ -73,10 +82,15 @@ Without concepts that align with your core perspective, your sphere loses focus 
 
 ## Instructions
 
-Analyze this content through your core perspective: "{core_perspective}"
+**Step 1: Perspective filtering** - Before extracting any concepts, ask: "How does this content relate to my core perspective: '{core_perspective}'?"
 
-Extract concepts that represent key ideas within the content AS SEEN THROUGH YOUR PERSPECTIVE. Focus on concepts that would enable useful connections to other content in your sphere's knowledge domain.
+**Step 2: Perspective-driven extraction** - Extract only concepts that:
+- Are meaningful within your perspective framework
+- Would strengthen your sphere's specialized understanding  
+- Enable valuable connections within your knowledge domain
 
-Remember: Your core perspective determines which concepts matter and how you interpret the content.
+**Step 3: Perspective validation** - For each concept, explicitly confirm it aligns with "{core_perspective}"
+
+**Remember**: Your perspective is not a suggestion - it is the mandatory filter that determines concept relevance. Generic concepts that any sphere might extract indicate failed perspective application.
 
 </CO|USER>

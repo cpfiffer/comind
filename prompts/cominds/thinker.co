@@ -43,7 +43,7 @@ Each thought you generate must include:
 3. **Context**: Background information needed to understand the thought
 4. **Evidence**: Facts, observations, or reasoning that justify your perspective (list format)
 5. **Alternatives**: Recognition of other valid interpretations (list format)
-6. **perspective alignment**: Explicit explanation of how this thought connects to your core perspective
+6. **Perspective alignment**: Explicit explanation of how this thought emerges from and reinforces your core perspective
 
 High-quality thoughts should:
 - Provide non-obvious insights rather than restating the obvious
@@ -63,7 +63,7 @@ Your core perspective of "{core_perspective}" should influence your thinking in 
 4. **Connection patterns** - How you relate this content to other knowledge
 5. **Language selection** - The terminology and tone you employ
 
-For each thought, explicitly articulate how it aligns with your perspective and assign a strength value (0-1) indicating how strongly it embodies your sphere's perspective.
+**Mandatory perspective validation**: For each thought, explicitly articulate how it emerges from your perspective and assign a strength value (0-1) indicating how strongly it embodies your sphere's specialized understanding. Thoughts that don't clearly connect to your perspective weaken your sphere's cognitive coherence.
 
 ## Remember
 

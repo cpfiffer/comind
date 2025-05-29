@@ -38,9 +38,6 @@ from src.comind.logging_config import configure_root_logger_without_timestamp
 configure_root_logger_without_timestamp()
 logger = logging.getLogger("jetstream_consumer")
 
-# Add Rich handler for colorful logging
-logging.getLogger().handlers = [RichHandler(rich_tracebacks=True)]
-
 # Silence httpx logs (only show warnings and errors)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -292,10 +289,8 @@ async def process_event(
 
         # Get the thread containing the post. If a root post URI is provided, use that
         # to get the thread, otherwise use the post URI.
-        # thread_uri = root_post_uri if root_post_uri else post_uri
-        # logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
-
-        thread_uri = post_uri # note, removing this post for now in order to not seek the root post
+        thread_uri = root_post_uri if root_post_uri else post_uri
+        logger.debug(f"Getting thread for {'root post' if root_post_uri else 'post'}", thread_uri)
 
         # Use depth=0 to fetch the complete thread with all replies
         # This ensures we get all branches of the conversation
@@ -431,9 +426,15 @@ async def process_event(
         # Upload the result
         try:
             logger.debug(f"Uploading comind result for {post_uri}")
+            
+            # Get sphere URI if comind has sphere information
+            sphere_uri = None
+            if hasattr(comind, 'sphere_uri') and comind.sphere_uri:
+                sphere_uri = comind.sphere_uri
+            
             comind.upload(
                 result,
-                RecordManager(client), # Consider passing the existing record_manager if appropriate
+                RecordManager(client, sphere_uri, enable_graph_sync=True), # Enable graph sync for real-time injection
                 target=post_uri,
                 from_refs=list_of_strong_refs # Pass the collected references
             )
@@ -713,7 +714,7 @@ async def main():
 
     # Log in to ATProto
     atproto_client = session_reuse.init_client(args.username, args.password)
-    record_manager = RecordManager(atproto_client)
+    record_manager = RecordManager(atproto_client, enable_graph_sync=True)
 
     # Get lists of spheres
     spheres = record_manager.list_records("me.comind.sphere.core")
@@ -758,6 +759,7 @@ async def main():
         comind.sphere_name = sphere_to_use.value["title"]
         comind.sphere_description = sphere_to_use.value["description"]
         comind.core_perspective = sphere_to_use.value["text"]
+        comind.sphere_uri = sphere_to_use["uri"]  # Add the sphere URI
     else:
         logger.warning("No sphere provided. Comind will not be attached to any sphere.")
 

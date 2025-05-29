@@ -25,6 +25,7 @@
 
 ## Core Principles
 - Comind is lexicon first. Lexicons are the source of truth.
+- Lexicons describe the shape of data on ATProtocol. They are defined using a JSON schema-like language. They are found in the lexicons/ directory.
 
 AI-generated contributions are welcome but must be high quality and well-reviewed.
 
