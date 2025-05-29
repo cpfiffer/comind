@@ -41,6 +41,10 @@ menu:
         icon: bluesky
 
 params:
+  theme:
+    default: dark
+    displayToggle: false
+    
   navbar:
     displayTitle: false
     displayLogo: true
