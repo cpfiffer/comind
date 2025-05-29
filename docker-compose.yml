@@ -54,7 +54,7 @@ services:
 
   neo4j:
     image: neo4j:5.26.7-community-bullseye
-    profiles: ["database", "all", ""] # Empty profile means it runs by default
+    profiles: ["database", "all"] # Runs by default without an empty profile
     environment:
       NEO4J_AUTH: neo4j/comind123
       NEO4J_PLUGINS: '["apoc"]'
