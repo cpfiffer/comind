@@ -38,9 +38,6 @@ from src.comind.logging_config import configure_root_logger_without_timestamp
 configure_root_logger_without_timestamp()
 logger = logging.getLogger("jetstream_consumer")
 
-# Add Rich handler for colorful logging
-logging.getLogger().handlers = [RichHandler(rich_tracebacks=True)]
-
 # Silence httpx logs (only show warnings and errors)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
