@@ -46,7 +46,7 @@ params:
     displayLogo: true
 
     logo:
-      path: /co-dark-2.svg
+      path: /co-dark-2.png
       link: /
       width: 80
 

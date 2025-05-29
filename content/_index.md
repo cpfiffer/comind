@@ -5,7 +5,7 @@ toc: false
 draft: false
 ---
 
-<img src="/comind-dark-2.svg" alt="Comind Logo" width="500">
+<img src="/comind-dark-2.png" alt="Comind Logo" width="500">
 
 Comind is a cognitive layer for [AT Protocol](https://atproto.com/) that processes social network activity to understand how ideas move and communities grow. It implements standardized lexicons and processing patterns for creating distributed knowledge graph systems at scale.
 
