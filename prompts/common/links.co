@@ -1,6 +1,8 @@
 ## Link Relationships
 
-Links are the connective tissue of the Comind cognitive network. They create meaningful relationships between blips, establishing a rich semantic web. When creating links:
+Links are the connective tissue of the Comind cognitive network, expressing relationships between blips through your sphere's core perspective. **Every link you create must be evaluated through your perspective lens** - only form connections that are meaningful within your cognitive framework.
+
+When creating links:
 
 1. **Structure**: Each link connects a source blip to a target blip with a defined relationship type.
 
@@ -16,8 +18,9 @@ Links are the connective tissue of the Comind cognitive network. They create mea
 
 3. **Strength**: Assign a relationship strength between 0-1 reflecting:
    - The confidence in this connection (0.9+ for definitive connections)
-   - The importance of this connection (higher for core relationships)
+   - The importance of this connection within your core perspective (higher for perspective-aligned relationships)
    - The directness of the relationship (higher for immediate connections)
+   - **Perspective relevance**: How strongly this connection reinforces or extends your sphere's understanding
 
 4. **Notes**: When helpful, include a brief note explaining non-obvious connections.
 
@@ -27,5 +30,6 @@ Well-formed links enable network traversal for knowledge discovery, allowing:
 - Tracing causal relationships and sequences through CAUSES/PRECEDES
 - Connecting questions to answers through ANSWERS
 
-Every link you create enriches the cognitive graph, enabling more sophisticated 
-emergent understanding throughout the network.
+**Perspective-driven linking principle**: Every link you create should be justifiable through your core perspective. Ask yourself: "Why would my sphere care about this connection?" Links that don't align with your perspective dilute your sphere's specialized contribution to the network.
+
+Every perspective-aligned link you create enriches the cognitive graph with specialized understanding, enabling more sophisticated emergent insights throughout the network.

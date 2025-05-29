@@ -262,21 +262,20 @@ class RecordManager:
 
             # Sync to graph database if enabled
             self._sync_record_to_graph(response, collection, record)
-            print("Sphere uri: ", self.sphere_uri)
 
             if self.sphere_uri is not None:
-                logger.info(f"Creating sphere record: {self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)}")
+                logger.debug(f"Creating sphere record: {self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)}")
                 sphere_response = self.client.com.atproto.repo.create_record(
                     self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)
                 )
-                logger.info(f"Successfully created sphere record: {sphere_response}")
+                logger.debug(f"Successfully created sphere record: {sphere_response}")
 
                 # Also sync the sphere relationship to graph
                 sphere_record_data = self.sphere_relationship_record(response.uri, response.cid, self.sphere_uri)['record']
                 self._sync_record_to_graph(sphere_response, "me.comind.relationship.sphere", sphere_record_data)
 
             # logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
-            logger.info(f"Successfully created {collection} record https://atp.tools/{response.uri}")
+            logger.debug(f"Successfully created {collection} record https://atp.tools/{response.uri}")
 
             # Rate limiting to avoid ATProto being mad at us
             logger.debug(f"Rate limiting: sleeping for {RATE_LIMIT_SLEEP_SECONDS} seconds")
