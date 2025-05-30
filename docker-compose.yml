@@ -57,7 +57,7 @@ services:
     profiles: ["database", "all"] # Runs by default without an empty profile
     environment:
       NEO4J_AUTH: neo4j/comind123
-      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
       NEO4J_apoc_export_file_enabled: true
       NEO4J_apoc_import_file_enabled: true
       NEO4J_apoc_import_file_use__neo4j__config: true
