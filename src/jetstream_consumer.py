@@ -178,18 +178,22 @@ def is_did(text: str) -> bool:
 
 def resolve_handle_to_did(client, handle: str, user_info_cache: UserInfoCache) -> Optional[str]:
     """Resolve a handle to a DID using the ATProto client"""
-    if user_info_cache.contains(handle):
-        user_info = user_info_cache.get_user_info(handle)
-        did = user_info.did
-    else:
-        user_info = client.get_profile(handle)
-        handle = user_info.handle
-        display_name = user_info.display_name
-        did = user_info.did
-        description = user_info.description
-        user_info_cache.add_user_info(did, UserInfo(did=did, handle=handle, display_name=display_name, description=description))
+    try:
+        if user_info_cache.contains(handle):
+            user_info = user_info_cache.get_user_info(handle)
+            did = user_info.did
+        else:
+            user_info = client.get_profile(handle)
+            handle = user_info.handle
+            display_name = user_info.display_name
+            did = user_info.did
+            description = user_info.description
+            user_info_cache.add_user_info(did, UserInfo(did=did, handle=handle, display_name=display_name, description=description))
 
-    return did
+        return did
+    except Exception as e:
+        logger.warning(f"Failed to resolve handle '{handle}' to DID: {e}")
+        return None
 
 def load_activated_dids_from_file(client: Client, file_path: str, user_info_cache: UserInfoCache) -> List[str]:
     """Load activated DIDs from a text file
@@ -204,6 +208,7 @@ def load_activated_dids_from_file(client: Client, file_path: str, user_info_cach
         List of DIDs
     """
     dids = []
+    failed_identifiers = []
 
     try:
         # Create the file if it doesn't exist
@@ -214,7 +219,9 @@ def load_activated_dids_from_file(client: Client, file_path: str, user_info_cach
             return []
 
         with open(file_path, 'r') as f:
+            line_number = 0
             for line in f:
+                line_number += 1
                 identifier = line.strip()
 
                 # Skip empty lines and comments
@@ -224,39 +231,69 @@ def load_activated_dids_from_file(client: Client, file_path: str, user_info_cach
                 # If it's already a DID, add it directly
                 if is_did(identifier):
                     dids.append(identifier)
+                    logger.debug(f"Line {line_number}: Added DID directly: {identifier}")
 
                 # Otherwise, resolve the handle to a DID
                 else:
                     did = resolve_handle_to_did(client, identifier, user_info_cache)
                     if did:
                         dids.append(did)
+                        logger.debug(f"Line {line_number}: Resolved handle '{identifier}' to DID: {did}")
+                    else:
+                        failed_identifiers.append(f"Line {line_number}: {identifier}")
+                        logger.warning(f"Line {line_number}: Failed to resolve identifier: {identifier}")
 
-        logger.info(f"Loaded {len(dids)} activated DIDs from {file_path}")
+        # Log summary
+        if failed_identifiers:
+            logger.warning(f"Failed to resolve {len(failed_identifiers)} identifiers:")
+            for failed in failed_identifiers:
+                logger.warning(f"  {failed}")
 
-        # If no DIDs were loaded, raise an error
+        logger.info(f"Successfully loaded {len(dids)} activated DIDs from {file_path}")
+
+        # If no DIDs were loaded, log an error but don't raise an exception
         if len(dids) == 0:
-            logger.error(f"No activated DIDs found in {file_path}")
+            logger.error(f"No activated DIDs could be loaded from {file_path}")
+            logger.error("Please check that the file contains valid DIDs or handles")
             with open(file_path, 'r') as f:
-                print(f.read())
-            raise Exception(f"No activated DIDs found in {file_path}")
-
+                content = f.read()
+                if content.strip():
+                    logger.error("File contents:")
+                    print(content)
+                else:
+                    logger.error("File is empty")
+            # Return empty list instead of raising exception
+            return []
 
         return dids
 
     except Exception as e:
-        logger.error(f"Error loading activated DIDs from {file_path}: {e}")
-        return []
+        logger.error(f"Unexpected error while loading activated DIDs from {file_path}: {e}")
+        # Return whatever DIDs we managed to load before the error
+        if dids:
+            logger.info(f"Returning {len(dids)} DIDs that were successfully loaded before the error")
+        return dids
 
 
 def update_activated_dids(client: Client, file_path: str, user_info_cache: UserInfoCache) -> None:
     """Update the list of activated DIDs from the file"""
     global activated_dids
     try:
-        activated_dids = load_activated_dids_from_file(client, file_path, user_info_cache)
-        logger.info(f"Observing {len(activated_dids)} repositories")
+        new_dids = load_activated_dids_from_file(client, file_path, user_info_cache)
+        if new_dids:
+            activated_dids = new_dids
+            logger.info(f"Observing {len(activated_dids)} repositories")
+        else:
+            logger.warning("No DIDs were loaded from the file")
+            if activated_dids:
+                logger.info(f"Keeping existing list of {len(activated_dids)} DIDs")
+            else:
+                logger.warning("No activated DIDs available - will process all posts but content will be marked as [NOT AVAILABLE]")
     except Exception as e:
         logger.error(f"Failed to update activated DIDs: {e}")
         # Keep existing list if update fails
+        if activated_dids:
+            logger.info(f"Keeping existing list of {len(activated_dids)} DIDs")
 
 
 async def process_event(

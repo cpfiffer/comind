@@ -157,12 +157,14 @@ class GraphSyncService:
         logger.info(f"Syncing collection: {collection}")
 
         try:
-            records = self.record_manager.list_records(collection)
+            # Use list_all_records to handle pagination
+            records = self.record_manager.list_all_records(collection)
 
             if not records:
                 logger.info(f"No records found in collection: {collection}")
                 return 0
 
+            logger.info(f"Found {len(records)} records in collection: {collection}")
             synced_count = 0
 
             for record in records:
@@ -454,31 +456,84 @@ class GraphSyncService:
         target_uri = value.get("target", "")
         relationship_type = value.get("relationship", "RELATES_TO")
 
-        query = """
-        MERGE (source {uri: $source_uri})
-        ON CREATE SET source.createdAt = datetime()
-        MERGE (target:Concept {uri: $target_uri})
-        ON CREATE SET target.createdAt = datetime()
-        MERGE (source)-[r:CONCEPT_RELATION {uri: $uri}]->(target)
-        ON CREATE SET r.cid = $cid,
-                      r.relationship = $relationship,
-                      r.createdAt = $createdAt,
-                      r.updatedAt = datetime()
-        ON MATCH SET r.cid = $cid,
-                     r.relationship = $relationship,
-                     r.updatedAt = datetime()
-        """
+        # First, check if the concept exists and has text
+        # If not, try to fetch it from the repository
+        concept_text = None
+        if self.record_manager and target_uri:
+            try:
+                # Parse the URI to get collection and rkey
+                parts = target_uri.split('/')
+                if len(parts) >= 5 and target_uri.startswith('at://'):
+                    repo = parts[2]
+                    collection = parts[3]
+                    rkey = '/'.join(parts[4:])
+                    
+                    # Fetch the concept record
+                    concept_record = self.record_manager.client.com.atproto.repo.get_record({
+                        'collection': collection,
+                        'repo': repo,
+                        'rkey': rkey
+                    })
+                    
+                    if concept_record and concept_record.value:
+                        concept_text = concept_record.value.get('concept', None)
+                        logger.debug(f"Fetched concept text for {target_uri}: {concept_text}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch concept record {target_uri}: {e}")
+
+        # Create the relationship, ensuring the concept has its text if we found it
+        if concept_text:
+            query = """
+            MERGE (source {uri: $source_uri})
+            ON CREATE SET source.createdAt = datetime()
+            MERGE (target:Concept {uri: $target_uri})
+            ON CREATE SET target.createdAt = datetime()
+            SET target.text = $concept_text
+            MERGE (source)-[r:CONCEPT_RELATION {uri: $uri}]->(target)
+            ON CREATE SET r.cid = $cid,
+                          r.relationship = $relationship,
+                          r.createdAt = $createdAt,
+                          r.updatedAt = datetime()
+            ON MATCH SET r.cid = $cid,
+                         r.relationship = $relationship,
+                         r.updatedAt = datetime()
+            """
+            params = {
+                "uri": uri,
+                "cid": cid,
+                "source_uri": source_uri,
+                "target_uri": target_uri,
+                "concept_text": concept_text,
+                "relationship": relationship_type,
+                "createdAt": value.get("createdAt", ""),
+            }
+        else:
+            # Fall back to original query without setting text
+            query = """
+            MERGE (source {uri: $source_uri})
+            ON CREATE SET source.createdAt = datetime()
+            MERGE (target:Concept {uri: $target_uri})
+            ON CREATE SET target.createdAt = datetime()
+            MERGE (source)-[r:CONCEPT_RELATION {uri: $uri}]->(target)
+            ON CREATE SET r.cid = $cid,
+                          r.relationship = $relationship,
+                          r.createdAt = $createdAt,
+                          r.updatedAt = datetime()
+            ON MATCH SET r.cid = $cid,
+                         r.relationship = $relationship,
+                         r.updatedAt = datetime()
+            """
+            params = {
+                "uri": uri,
+                "cid": cid,
+                "source_uri": source_uri,
+                "target_uri": target_uri,
+                "relationship": relationship_type,
+                "createdAt": value.get("createdAt", ""),
+            }
 
         with self.driver.session() as session:
-            session.run(
-                query,
-                uri=uri,
-                cid=cid,
-                source_uri=source_uri,
-                target_uri=target_uri,
-                relationship=relationship_type,
-                createdAt=value.get("createdAt", ""),
-            )
+            session.run(query, **params)
 
     def _create_link_relationship(self, uri: str, cid: str, value: Dict):
         """Create a general link relationship between nodes."""

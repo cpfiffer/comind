@@ -4,3 +4,18 @@
 
 cameron.pfiffer.org
 neuromute.ai
+
+# deanshamess.ca
+did:plc:ycrg7g2vkickmvxurd7bnidj
+
+# goat.navy
+goat.navy
+
+# dulanyw.bsky.social
+dulanyw.bsky.social
+
+# baileytownsend.dev
+did:plc:rnpkyqnmsw4ipey6eotbdnnf
+
+# the dame
+dame.is
