@@ -3,7 +3,6 @@
 # newlines.
 
 cameron.pfiffer.org
-neuromute.ai
 
 # deanshamess.ca
 did:plc:ycrg7g2vkickmvxurd7bnidj
@@ -19,3 +18,6 @@ did:plc:rnpkyqnmsw4ipey6eotbdnnf
 
 # the dame
 dame.is
+
+# neuromute
+neuromute.ai
